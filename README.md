@@ -67,7 +67,7 @@ MNN speed-up (search nodes to find each pair's derivation, trained leave-one-fam
 
 Time limits nest correctly: `limited/2` catches only its own limit, so an enclosing limit is never swallowed. Without this, AlgebraPLOp's search ran past its limit for over 40 minutes. With it, the search takes 315 nodes.
 
-`calc/calc_check.py` checks the worked calculations quoted in the report (15/15). `calc/flies.lp` is the hand-written clingo inversion example.
+`calc/calc_check.pl` checks the worked calculations quoted in the report (15/15; run `swipl calc/calc_check.pl`, which exits 1 if any check fails). `calc/flies.lp` is the hand-written clingo inversion example.
 
 ## Files
 

@@ -22,3 +22,5 @@ jobs:
         run: ./run_families.sh
       - name: Every test must equal the axioms and be proved
         run: ./check_results.sh
+      - name: Check the worked calculations in the report
+        run: swipl calc/calc_check.pl
