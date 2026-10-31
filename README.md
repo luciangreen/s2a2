@@ -76,7 +76,7 @@ The optimisation it supports: a unary guard `t(V)` is deleted when V also stands
 - "Conditions not forced" means no training step had a negative, so no condition was needed to separate them. The operator only fires where it is sound, so the output still equals the axioms' output.
 - AlgebraPLOp's closed form is proved with the index facts held fixed. With a gap in the index (for example, n(2) missing) the recurrence stops but the formula does not, and the prover reports that counter-example.
 
-MNN speed-up (search nodes to find each pair's derivation, trained leave-one-family-out, `results/speedup.txt`): **4,802,587 nodes in fixed order, 2,453,579 in MNN order (2.0x fewer), with the same answers.** The largest gains are Detlog (9.2x), Piglog2 (4.9x), loop2 and AlgebraPLOp (3.2x) and Starlog (2.8x). On the three smallest searches (under 30 nodes) it is slightly slower.
+MNN speed-up (search nodes to find each pair's derivation, trained leave-one-family-out, `results/speedup.txt`; nodes counted for solved pairs only): **364,029 nodes in fixed order, 99,561 in MNN order (3.7x fewer), with the same answers.** The largest gains are Detlog (9.2x), PLOp (8.2x), Piglog2 (4.9x), loop2 and AlgebraPLOp (3.2x) and Starlog (2.8x). It is slower on proof/types (0.56x) and on three of the four searches under 30 nodes. One PLOp pair is not solved within 2 minutes in either order; it is left out of the counts, because an unsolved pair's count measures the machine's speed, not the search.
 
 Time limits nest correctly: `limited/2` catches only its own limit, so an enclosing limit is never swallowed. Without this, AlgebraPLOp's search ran past its limit for over 40 minutes. With it, the search takes 315 nodes.
 

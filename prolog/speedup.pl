@@ -11,12 +11,16 @@ pairs_of(F, Pairs) :-
     axioms(F, Ax),
     findall(pair(B, A, T), ( inst(F, _, _, Cs, T), program_from_clauses(Cs, B), apply_algorithm(Ax, B, T, A, _) ), Pairs).
 
+% nodes are counted for solved pairs only: an unsolved pair runs until the time limit, so its
+% count measures the machine's speed, not the search
 count_family(Pairs, Total, Solved) :-
     foldl([pair(B, A, T), N0-S0, N-S]>>(
               reset_nodes,
-              ( s2a2:limited(120, derive(B, A, T, 8, _)) -> S = S0 + 1 ; S = S0 ),
-              nodes(K), N is N0 + K),
-          Pairs, 0-0, Total-S1), Solved is S1.
+              (   s2a2:limited(120, derive(B, A, T, 8, _))
+              ->  S is S0 + 1, nodes(K), N is N0 + K
+              ;   S = S0, N = N0
+              ) ),
+          Pairs, 0-0, Total-Solved).
 
 main :-
     families(Fs),
