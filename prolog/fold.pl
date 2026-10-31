@@ -1,64 +1,101 @@
 :- encoding(utf8).
 /*  fold.pl -- spec to algorithm: derive an efficient program from a naive one by
     unfold/fold transformation (Burstall and Darlington 1977; Tamaki and Sato 1984),
-    with eureka definitions and a database of proved lemmas.
+    with eureka definitions, a database of proved lemmas, lemma discovery and a learned
+    choice of strategy.
 
     S2A2's other operators only make a program smaller. Deriving a new algorithm
     sometimes needs the opposite first: introduce a new predicate (a "eureka"
     definition), unfold it, rewrite with a lemma, then FOLD the result back into a
-    call to the new predicate. This module adds those steps.
+    call to the new predicate.
 
-    A program is a list of clauses Head-BodyList over pure, function-free-or-list
-    Prolog (no builtins). The rules, each with the side conditions that make it sound:
+    PROGRAMS are lists of clauses Head-BodyList. Bodies may use is/2 and comparisons.
+    TYPES are declared by their constructors (set_types/1); the defaults are
+        list(E): [] | [E|list(E)]      tree(E): leaf | node(tree(E),E,tree(E))
+        nat:     0  | s(nat)
+    with the base types int, num and any.
 
+    RULES (each with the side condition that makes it sound)
       define     add  d(V1..Vn) :- G1,...,Gk  for a new name d
-      unfold     replace a clause by all its resolvents on one body literal
-      fold       replace an instance of a definition's body by its head; the
-                 definition's local variables must map to distinct variables that
-                 occur nowhere else in the clause (Tamaki-Sato condition), and a clause
-                 that came from a definition must have been unfolded at least once
-      lemma      replace an instance of one side of a PROVED lemma by the other side,
+      unfold     replace a clause by all its resolvents on one user literal
+      fold       replace an instance of a definition's body by its head; the definition's
+                 local variables must map to distinct variables used nowhere else in the
+                 clause (Tamaki-Sato), and a clause from a definition was unfolded first
+      lemma      replace an instance of one side of a lemma in the database by the other,
                  under the same local-variable condition
-      normalise  unfold a literal whose case argument is already a constructor and that
-                 matches at most one clause (deterministic, always sound)
+      merge      unify two calls of one predicate with identical first arguments
+                 (an instance of a clause; equality then rests on functionality)
+      normalise  unfold a literal whose case argument is a constructor and that matches at
+                 most one clause; evaluate is/2 and comparisons on ground arguments
 
-    Strategies
-      deforest   a conjunctive definition p(..) :- q(..), r(..) is unfolded on its
-                 induction variable and folded back, removing the intermediate structure
-      accumulate a recursive clause p([H|T],..) :- p(T,X), q(X,[H],..) that does work
-                 after its recursive call gets a eureka definition by GENERALISING the
-                 constants after the call (here [H] becomes a fresh accumulator A); the
-                 definition is unfolded, rewritten with lemmas from the database, and
-                 folded; the original clause is then folded with the definition
-    Both search for the steps by iterative deepening.
+    STRATEGIES (tried in a learned order, see learn_strategies/2)
+      deforest   a conjunctive definition p :- q, r is unfolded on its induction variable
+                 and folded back: the intermediate structure disappears
+      accumulate a recursive call whose result is consumed afterwards gets a definition that
+                 generalises the consumer's other arguments into an accumulator
+      tuple      two recursive calls on related arguments (N and s(N)) get a definition that
+                 computes both results together
+    Each searches by iterative deepening for unfold/lemma/merge/fold steps until every
+    step clause of the new predicate calls only new predicates and builtins.
 
-    Correctness
-      * unfold/fold only (deforest, lemma proofs): the least model is preserved
-        exactly (Tamaki and Sato 1984).
-      * with lemma steps (accumulate): every step keeps every clause true in the least
-        model M0 of the specification plus definitions, so M(result) is a subset of M0
-        (soundness). Equality then follows from three checks done here:
-          total(Result, P, Mode)       the result answers every input of the mode
-                                       (case analysis on a list argument, structural
-                                       recursion, mode-correct calls)
-          functional(Spec, P, Mode)    the specification has at most one answer
-          list_slot(Spec, P, I)        the specification answers only list inputs
-        so for every ground input both have exactly the same answer.
-      * lemmas enter the database only when prove_lemma/3 proves them: both sides are
-        deforested on the same induction variable and must give the same program.
-      * bounded_equal/7 independently compares two programs on every input up to a
-        size, and returns a counter-example when they differ.
+    DATABASE: a lemma about user predicates is admitted only after prove_lemma/3 proves it
+    (both sides deforested to the same program). Arithmetic facts (associativity of + and *)
+    are axioms of the integers.
+    DISCOVERY: when a strategy gets stuck, discover_lemmas/4 conjectures lemmas from the
+    stuck clauses (associativity and commutativity of a predicate that chains with itself,
+    associativity of an arithmetic operator), proves or refutes each, and the strategy is
+    retried with the proved ones.
 
-    Main predicates
-      spec_to_algorithm(+Spec, +Target, +Lemmas, -Program, -Report)
-      prove_lemma(+Spec, +Lemma, -Result)          Lemma = lemma(Name, Lhs, Rhs)
-      total/3, functional/3, list_slot/3, bounded_equal/7, steps/4, show/1
+    CORRECTNESS of a derived program R against its specification S, for a target predicate
+    in a mode whose inputs have declared types (verify/5):
+      * deforest without lemmas or merges: unfold/fold preserves the least model exactly
+        (Tamaki-Sato), so R and S agree in every mode.
+      * otherwise every step keeps every clause true in the least model of S plus the
+        definitions, so each answer of R is an answer of S (soundness); then
+          total(R, p, Mode)        R answers every input of the declared types
+          functional(S, p, Mode)   S has at most one answer per input
+        give the same answers on every input of those types; and if also
+          slot_type(S, p, I, T)    every answer of S has the declared type at each input
+        the least models are equal, so R and S agree in every mode (correct answers; which
+        queries terminate may still differ). Integer axioms are sound where their variables
+        are integers; verify/5 reports whether every is/2 in R is on integers.
+      * bounded_equal/7 compares two programs on every input up to a size.
 */
-:- module(fold, [ spec_to_algorithm/5, prove_lemma/3, total/3, functional/3, list_slot/3,
-                  bounded_equal/7, steps/4, show/1, clauses/2, same_clauses/2,
-                  unfold/4, fold_with/3, lemma_step/4 ]).
+:- module(fold, [ set_types/1, default_types/1, clauses/2, show/1,
+                  unfold/4, fold_with/3, lemma_step/4, merge_step/3,
+                  spec_to_algorithm/5, spec_to_algorithm/6, strategies/1,
+                  prove_lemma/3, discover_lemmas/4, axiom/4,
+                  total/3, total/4, functional/3, slot_type/4, verify/5,
+                  bounded_equal/7, answers/3, steps/4, cost/4, same_clauses/2,
+                  features/3, learn_strategies/2, choose_order/3 ]).
 :- use_module(library(lists)).
 :- use_module(library(apply)).
+:- use_module(library(pairs)).
+
+% ---------------------------------------------------------------- types
+:- dynamic type_decl/2.
+default_types([ type(list(E), [[], [E|list(E)]]),
+                type(tree(E), [leaf, node(tree(E), E, tree(E))]),
+                type(nat, [0, s(nat)]) ]).
+set_types(Ds) :- retractall(type_decl(_, _)), forall(member(type(T, Cs), Ds), assertz(type_decl(T, Cs))).
+:- initialization(( default_types(D), set_types(D) )).
+
+% constructor(+Type, ?Name/Arity, -ArgTypes)
+constructor(T, F/A, ATs) :-
+    nonvar(T), type_decl(T0, Cs0), copy_term(T0-Cs0, T1-Cs), T1 = T,
+    member(C, Cs), functor(C, F, A), C =.. [_|ATs].
+% any declared type with this constructor (for inference)
+constructor_any(T, F/A, ATs) :-
+    type_decl(T0, Cs0), copy_term(T0-Cs0, T-Cs), member(C, Cs), functor(C, F, A), C =.. [_|ATs].
+
+base_type(T) :- memberchk(T, [any, int, num]).
+
+% type_le(S, T): every value of type S is a value of type T
+type_le(_, T) :- T == any, !.
+type_le(S, T) :- S == T, !.
+type_le(S, T) :- S == int, T == num, !.
+type_le(S, T) :- nonvar(S), nonvar(T), \+ base_type(S), \+ base_type(T),
+    S =.. [F|As], T =.. [F|Bs], maplist(type_le, As, Bs).
 
 % ---------------------------------------------------------------- representation
 clauses([], []).
@@ -70,39 +107,54 @@ conj(G, [G]).
 key(G, N/A) :- functor(G, N, A).
 clauses_of(P, K, Cs) :- findall(H-B, ( member(H-B, P), key(H, K) ), Cs).
 
+builtin(G) :- compound(G), functor(G, F, 2), memberchk(F, [is, <, >, =<, >=, =:=, =\=, =]), !.
+user_lit(G) :- \+ builtin(G).
+comparison(G) :- compound(G), functor(G, F, 2), memberchk(F, [<, >, =<, >=, =:=, =\=]).
+
 show(Cs) :- forall(member(C, Cs), show_clause(C)).
 show_clause(H-B) :-
     copy_term(H-B, H1-B1), numbervars(H1-B1, 0, _),
     (   B1 == [] -> format("    ~p.~n", [H1])
-    ;   atomic_list_concat_terms(B1, S), format("    ~p :- ~w.~n", [H1, S]) ).
-atomic_list_concat_terms(Gs, S) :-
-    maplist([G, A]>>format(atom(A), "~p", [G]), Gs, As), atomic_list_concat(As, ', ', S).
+    ;   lits_atom(B1, S), format("    ~p :- ~w.~n", [H1, S]) ).
+lits_atom(Gs, S) :- maplist([G, A]>>format(atom(A), "~p", [G]), Gs, As), atomic_list_concat(As, ', ', S).
 
-% the argument that a predicate's clauses analyse by cases ([] or [_|_] in every head)
+vmember(V, L) :- member(X, L), X == V, !.
+vsub(Xs, Ys, Zs) :- exclude({Ys}/[X]>>vmember(X, Ys), Xs, Zs).
+vint(Xs, Ys, Zs) :- include({Ys}/[X]>>vmember(X, Ys), Xs, Zs).
+pairs_of([], [], []).
+pairs_of([A|As], [B|Bs], [A-B|R]) :- pairs_of(As, Bs, R).
+
+% the argument a predicate's clauses analyse by cases (a constructor in every head)
 case_pos(P, K, I) :-
     clauses_of(P, K, Cs), Cs = [H0-_|_], functor(H0, _, A), between(1, A, I),
-    forall(member(H-_, Cs), ( arg(I, H, X), ( X == [] ; subsumes_term([_|_], X) ) )), !.
+    forall(member(H-_, Cs), ( arg(I, H, X), nonvar(X) )), !.
 
-% ---------------------------------------------------------------- unfold
+% ---------------------------------------------------------------- unfold and normalise
 unfold(Spec, H-B, J, Cs) :-
-    nth1(J, B, L), key(L, K), clauses_of(Spec, K, Ds), Ds \== [],
+    nth1(J, B, L), user_lit(L), key(L, K), clauses_of(Spec, K, Ds), Ds \== [],
     findall(H1-B1, ( copy_term(H-B, H1-B0), nth1(J, B0, L1, Rest),
                      member(D, Ds), copy_term(D, DH-DB),
                      unify_with_occurs_check(L1, DH),
                      J0 is J - 1, length(Pre, J0), append(Pre, Post, Rest),
                      append([Pre, DB, Post], B1) ), Cs).
 
-% deterministic unfolding of literals whose case argument is a constructor
-normalise(Spec, DefKs, C, Out) :-
-    C = _-B,
-    (   nth1(J, B, L), key(L, K), \+ memberchk(K, DefKs), case_pos(Spec, K, I),
+normalise(Spec, DefKs, C0, Out) :- copy_term(C0, C), normalise_(Spec, DefKs, C, Out).
+normalise_(Spec, DefKs, C, Out) :-
+    C = H-B,
+    (   nth1(J, B, L), builtin(L), ground_builtin(L)
+    ->  nth1(J, B, _, B1),
+        ( catch(eval_builtin(L), _, fail) -> normalise_(Spec, DefKs, H-B1, Out) ; Out = failed )
+    ;   nth1(J, B, L), user_lit(L), key(L, K), \+ memberchk(K, DefKs), case_pos(Spec, K, I),
         arg(I, L, X), nonvar(X), unfold(Spec, C, J, Cs), length(Cs, N), N =< 1
-    ->  ( Cs = [C1] -> normalise(Spec, DefKs, C1, Out) ; Out = failed )
+    ->  ( Cs = [C1] -> normalise_(Spec, DefKs, C1, Out) ; Out = failed )
     ;   Out = C
     ).
+ground_builtin(X is E) :- !, ground(E), ( var(X) ; number(X) ).
+ground_builtin(L) :- comparison(L), ground(L).
+eval_builtin(X is E) :- !, V is E, X = V.
+eval_builtin(L) :- call(L).
 
-% ---------------------------------------------------------------- matching goals
-% match the patterns onto distinct body literals, binding only the patterns' variables
+% ---------------------------------------------------------------- matching
 match_goals([], _, []).
 match_goals([P|Ps], B, [I|Is]) :-
     nth1(I, B, G), subsumes_term(P, G), P = G, match_goals(Ps, B, Is), \+ memberchk(I, Is).
@@ -120,34 +172,48 @@ rep([G|Gs], I, Idx, M, New, Out) :- I1 is I + 1,
     ;   Out = [G|Rest] ),
     rep(Gs, I1, Idx, M, New, Rest).
 
-vsub(Xs, Ys, Zs) :- exclude({Ys}/[X]>>( member(Y, Ys), Y == X ), Xs, Zs).
-vint(Xs, Ys, Zs) :- include({Ys}/[X]>>( member(Y, Ys), Y == X ), Xs, Zs).
-
-% local variables must be distinct variables that occur nowhere else in the clause
+% local variables are distinct variables that occur nowhere else in the clause
 locals_ok(Ex, H, B, Idx, Extra) :-
     maplist(var, Ex), sort(Ex, S), length(S, N), length(Ex, N),
     others(B, Idx, Os), term_variables(H-Os-Extra, OV),
-    \+ ( member(E, Ex), member(V, OV), E == V ).
+    \+ ( member(E, Ex), vmember(E, OV) ).
 
-% ---------------------------------------------------------------- fold and lemma steps
+% ---------------------------------------------------------------- steps
 fold_with(def(DH0, DB0), H-B, H-B1) :-
     copy_term(DH0-DB0, DH-DB),
     term_variables(DH, HV), term_variables(DB, BV), vsub(BV, HV, Ex),
     match_goals(DB, B, Idx), locals_ok(Ex, H, B, Idx, DH),
     replace_at(B, Idx, [DH], B1).
 
-lemma_step(lemma(_, L0, R0), Dir, H-B, H-B1) :-
-    copy_term(L0-R0, L-R),
+lemma_step(Lm, Dir, H-B, H-B1) :-
+    lemma_sides(Lm, L0, R0), copy_term(L0-R0, L-R),
     ( Dir == lr -> F = L, T = R ; F = R, T = L ),
     term_variables(F, FV), term_variables(T, TV), vsub(FV, TV, Ex),
     match_goals(F, B, Idx), locals_ok(Ex, H, B, Idx, T),
     replace_at(B, Idx, T, B1).
+lemma_sides(lemma(_, L, R), L, R).
+lemma_sides(axiom(_, L, R, _), L, R).
+
+% two calls of one predicate with identical first arguments become one
+merge_step(C0, H-B1, merge) :-
+    copy_term(C0, H-B),
+    nth1(I, B, L1), user_lit(L1), nth1(J, B, L2), J > I, user_lit(L2), key(L1, K), key(L2, K),
+    arg(1, L1, A1), arg(1, L2, A2), A1 == A2, L1 \== L2,
+    unify_with_occurs_check(L1, L2), nth1(J, B, _, B1).
 
 % ---------------------------------------------------------------- search for one clause
-% goal: a step clause (constructor at the induction argument) calls only new predicates
-goal(DefKs, Case, H-B) :-
+% goal: a step clause (a constructor with variables at the induction argument) calls only
+% new predicates and builtins
+% For an accumulator the step clause must also be a tail call: the definition's outputs are
+% passed straight to a call of a new predicate, never computed afterwards by a builtin.
+goal(DefKs, Case-Kind, H-B) :-
     arg(Case, H, X),
-    ( subsumes_term([_|_], X) -> forall(member(G, B), ( key(G, K), memberchk(K, DefKs) )) ; true ).
+    (   nonvar(X), term_variables(X, [_|_])
+    ->  forall(( member(G, B), user_lit(G) ), ( key(G, K), memberchk(K, DefKs) )),
+        (   Kind = tail(OutPos)
+        ->  forall(member(P, OutPos), ( arg(P, H, O), \+ ( member(G, B), builtin(G), term_variables(G, GV), vmember(O, GV) ) ))
+        ;   true )
+    ;   true ).
 
 solve_clause(Spec, Defs, Lemmas, Case, Max, C, C1-Steps) :-
     def_keys(Defs, DK),
@@ -162,59 +228,125 @@ search(Spec, Defs, DK, Lemmas, Case, D, C, Cf, [S-C2|Ss]) :-
 
 step_op(Defs, _, C, C1, fold(N)) :- member(D, Defs), D = def(DH, _), key(DH, N/_), fold_with(D, C, C1).
 step_op(_, Lemmas, C, C1, lemma(N, Dir)) :-
-    member(Lm, Lemmas), Lm = lemma(N, _, _), member(Dir, [lr, rl]), lemma_step(Lm, Dir, C, C1).
+    member(Lm, Lemmas), arg(1, Lm, N), member(Dir, [lr, rl]), lemma_step(Lm, Dir, C, C1).
+step_op(_, _, C, C1, merge) :- merge_step(C, C1, merge).
 
 def_keys(Defs, Ks) :- findall(K, ( member(def(H, _), Defs), key(H, K) ), Ks).
 
 % ---------------------------------------------------------------- strategies
-% deforest_on(+Spec, +Def, +Case, +Lemmas, -Clauses, -Trace)
-deforest_on(Spec, H-B, Case, Lemmas, Clauses, Trace) :-
-    arg(Case, H, X), var(X),
-    nth1(J, B, L), key(L, K), case_pos(Spec, K, I), arg(I, L, Y), Y == X, !,
-    Def = def(H, B), def_keys([Def], DK),
-    unfold(Spec, H-B, J, Cs0),
-    maplist(normalise(Spec, DK), Cs0, Cs1), exclude(==(failed), Cs1, Cs2),
-    maplist(solve_clause(Spec, [Def], Lemmas, Case, 4), Cs2, Rs),
-    pairs_keys_values(Rs, Clauses, StepLists),
-    Trace = [define(H-B), unfold(J, Cs2), steps(StepLists)].
+strategies([deforest, accumulate, tuple]).
 
+% eureka(+Strategy, +Spec, +Target, -Def, -Case, -Trace): the definition to transform and the
+% argument of its head that holds the induction variable
+eureka(deforest, Spec, Target, H-B, Case, [define(H-B)]) :-
+    clauses_of(Spec, Target, [H-B]), \+ ( member(G, B), user_lit(G), key(G, Target) ),
+    include(user_lit, B, UB), UB = [_, _|_],
+    functor(H, _, A), between(1, A, Case), arg(Case, H, X), var(X).
+eureka(accumulate, Spec, Target, DH-GB, Case, [eureka(accumulate, DH-GB, generalised(Cons, Cons1))]) :-
+    clauses_of(Spec, Target, TCs), member(H-B, TCs),
+    nth1(Ir, B, R), user_lit(R), key(R, Target),
+    case_pos(Spec, Target, I), arg(I, R, X), var(X),
+    term_variables(R, RV), term_variables(H, HV), vsub(RV, HV, Out0), vsub(Out0, [X], Out), Out \== [],
+    findall(J, ( nth1(J, B, G), J \== Ir, \+ ( user_lit(G), key(G, Target) ),
+                 term_variables(G, GV), member(O, Out), vmember(O, GV) ), Js0),
+    sort(Js0, Js), Js \== [],
+    maplist({B}/[J, G]>>nth1(J, B, G), Js, Cons),
+    generalise(Cons, Out, Cons1, Gen), Gen \== [],
+    GB = [R|Cons1],
+    others(B, [Ir|Js], Os), term_variables(H-Os, Outside),
+    term_variables(GB, BV),
+    include({Outside, Gen}/[V]>>( vmember(V, Outside) ; vmember(V, Gen) ), BV, Iface),
+    Target = TN/_, atom_concat(TN, '_acc', DN), DH =.. [DN|Iface],
+    nth1(Case, Iface, X1), X1 == X,
+    % outputs: interface variables of the original clause that the recursive call does not take
+    findall(P, ( nth1(P, Iface, V), vmember(V, Outside), \+ vmember(V, RV) ), OutPos),
+    nb_setval(fold_kind, DN-tail(OutPos)).
+eureka(tuple, Spec, Target, DH-Rs, 1, [eureka(tuple, DH-Rs)]) :-
+    clauses_of(Spec, Target, TCs), member(_-B, TCs),
+    include({Target}/[G]>>( user_lit(G), key(G, Target) ), B, Rs), Rs = [_, _|_],
+    case_pos(Spec, Target, I),
+    maplist({I}/[G, A]>>arg(I, G, A), Rs, As),
+    As = [A1|_], term_variables(A1, [V]),
+    forall(member(A, As), term_variables(A, [V])),
+    \+ ( nth1(P, As, A), nth1(Q, As, A2), P < Q, A =@= A2 ),
+    term_variables(Rs, RV), vsub(RV, [V], Outs),
+    Target = TN/_, atom_concat(TN, '_tup', DN), DH =.. [DN, V|Outs].
+
+% generalise the consumers: every argument (inside is/2, every subterm of the expression)
+% that does not contain an output of the recursive call becomes a fresh variable
+generalise([], _, [], []).
+generalise([L|Ls], Out, [L1|Ls1], Gen) :-
+    (   L = (X is E) -> gen_expr(Out, E, E1, [], G1), L1 = (X is E1)
+    ;   L =.. [F|As], foldl(gen_arg(Out), As, As1, [], G1), L1 =.. [F|As1] ),
+    generalise(Ls, Out, Ls1, G2), append(G1, G2, Gen).
+gen_arg(_, A, A, G, G) :- var(A), !.
+gen_arg(Out, A, A, G, G) :- term_variables(A, AV), member(V, AV), vmember(V, Out), !.
+gen_arg(_, _, V, G, [V|G]).
+gen_expr(Out, E, E, G, G) :- var(E), vmember(E, Out), !.
+gen_expr(Out, E, E1, G0, G) :-
+    compound(E), term_variables(E, EV), member(V, EV), vmember(V, Out), !,
+    E =.. [F|As], foldl(gen_expr(Out), As, As1, G0, G), E1 =.. [F|As1].
+gen_expr(_, _, V, G, [V|G]).
+
+% unfold the definition on a literal whose case argument holds the induction variable,
+% then search each resulting clause
+deforest_on(Spec, H-B, Case, Lemmas, Clauses, Trace) :- deforest_on(Spec, H-B, Case, plain, Lemmas, Clauses, Trace).
+deforest_on(Spec, H-B, Case, Kind, Lemmas, Clauses, Trace) :-
+    unfolded(Spec, H-B, Case, J, Cs2),
+    maplist(solve_clause(Spec, [def(H, B)], Lemmas, Case-Kind, 5), Cs2, Rs),
+    pairs_keys_values(Rs, Clauses, StepLists),
+    Trace = [unfold(J, Cs2), steps(StepLists)].
+unfolded(Spec, H-B, Case, J, Cs2) :-
+    arg(Case, H, X), var(X), def_keys([def(H, B)], DK),
+    findall(J0-Pr, ( nth1(J0, B, L), user_lit(L), key(L, K), case_pos(Spec, K, I), arg(I, L, Y),
+                     term_variables(Y, YV), vmember(X, YV), ( Y == X -> Pr = 1 ; Pr = 0 ) ), JPs),
+    sort(2, @=<, JPs, Sorted),            % a constructor around X first: it splits X into cases
+    member(J-_, Sorted),
+    unfold(Spec, H-B, J, Cs0),
+    maplist(normalise(Spec, DK), Cs0, Cs1), exclude(==(failed), Cs1, Cs2).
+
+% spec_to_algorithm(+Spec, +Target, +Lemmas, -Program, -Report)
 spec_to_algorithm(Spec, Target, Lemmas, Program, Report) :-
-    clauses_of(Spec, Target, TCs),
-    (   TCs = [H-B], B = [_, _|_], \+ ( member(G, B), key(G, Target) )
-    ->  % deforestation of a conjunctive definition
-        functor(H, _, A), between(1, A, Case),
-        deforest_on(Spec, H-B, Case, Lemmas, Derived, Trace), !,
-        reachable([Target], Derived, Spec, Program),
-        uses_lemmas(Trace, Used),
-        Report = report(deforest, Trace, Used)
-    ;   % accumulation: eureka by generalisation after the recursive call
-        member(H-B, TCs), B = [R|Rest], key(R, Target), Rest \== [],
-        term_variables(H, HV0), generalise(Rest, HV0, Rest1, Gen),
-        GB = [R|Rest1],
-        term_variables(H, HV), term_variables(GB, BV),
-        include({HV, Gen}/[V]>>( ( member(W, HV), W == V ) ; ( member(W, Gen), W == V ) ), BV, Iface),
-        Target = TN/_, atom_concat(TN, '_acc', DN), DH =.. [DN|Iface],
-        case_pos(Spec, Target, I), arg(I, R, X), nth1(Case, Iface, X1), X1 == X,
-        deforest_on([DH-GB|Spec], DH-GB, Case, Lemmas, Derived, Trace0), !,
-        Def = def(DH, GB),
-        maplist(fold_greedy([Def]), TCs, TCs1),
-        append(TCs1, Derived, P0),
-        reachable([Target], P0, Spec, Program),
-        append([eureka(DH-GB, generalised(Rest, Rest1))|Trace0], [fold_target(TCs1)], Trace),
-        uses_lemmas(Trace, Used),
-        Report = report(accumulate, Trace, Used)
+    strategies(Order), spec_to_algorithm(Spec, Target, Lemmas, Order, Program, Report).
+% Report = report(Strategy, Trace, LemmasUsed, Attempts, Discovered)
+spec_to_algorithm(Spec, Target, Lemmas, Order, Program, report(S, Trace, Used, Attempts, Disc)) :-
+    try_order(Order, Spec, Target, Lemmas, 0, S, Program, Trace, Attempts, Disc),
+    uses_lemmas(Trace, Used).
+
+try_order([S|Ss], Spec, Target, Lemmas, N0, Sf, Program, Trace, N, Disc) :-
+    N1 is N0 + 1,
+    (   derive(S, Spec, Target, Lemmas, Program, Trace)
+    ->  Sf = S, N = N1, Disc = []
+    ;   % stuck: conjecture lemmas from the stuck clauses, settle them, retry with the good ones
+        findall(St, stuck(S, Spec, Target, St), Sts), append(Sts, Stuck), Stuck \== [],
+        discover_lemmas(Spec, Stuck, Lemmas, Found),
+        findall(L, ( member(F, Found), ( F = proved(L) ; F = axiom(L) ) ), New), New \== [],
+        append(Lemmas, New, Lemmas1),
+        derive(S, Spec, Target, Lemmas1, Program, Trace)
+    ->  Sf = S, N = N1, Disc = Found
+    ;   try_order(Ss, Spec, Target, Lemmas, N1, Sf, Program, Trace, N, Disc)
     ).
 
-% replace each non-variable argument built only from head variables by a fresh variable
-generalise([], _, [], []).
-generalise([L|Ls], HV, [L1|Ls1], Gen) :-
-    L =.. [F|As], foldl(gen_arg(HV), As, As1, [], G1), L1 =.. [F|As1],
-    generalise(Ls, HV, Ls1, G2), append(G1, G2, Gen).
-gen_arg(_, A, A, G, G) :- var(A), !.
-gen_arg(HV, A, V, G, [V|G]) :- term_variables(A, AV), forall(member(X, AV), ( member(Y, HV), Y == X )), !.
-gen_arg(_, A, A, G, G).
+derive(S, Spec, Target, Lemmas, Program, Trace) :-
+    eureka(S, Spec, Target, DH-DB, Case, Tr0),
+    ( S == deforest -> Spec1 = Spec ; Spec1 = [DH-DB|Spec] ),
+    ( eureka_kind(DH, Kind) -> true ; Kind = plain ),
+    deforest_on(Spec1, DH-DB, Case, Kind, Lemmas, Derived, Tr1), !,
+    (   S == deforest -> Program0 = Derived, Tr2 = []
+    ;   clauses_of(Spec, Target, TCs),
+        maplist(fold_all([def(DH, DB)]), TCs, TCs1),
+        append(TCs1, Derived, Program0), Tr2 = [fold_target(TCs1)] ),
+    reachable([Target], Program0, Spec, Program),
+    append([Tr0, Tr1, Tr2], Trace).
 
-fold_greedy(Defs, C, C1) :- ( member(D, Defs), fold_with(D, C, C2) -> C1 = C2 ; C1 = C ).
+eureka_kind(DH, Kind) :- functor(DH, DN, _), catch(nb_getval(fold_kind, DN-Kind), _, fail).
+
+stuck(S, Spec, Target, Stuck) :-
+    eureka(S, Spec, Target, DH-DB, Case, _),
+    ( S == deforest -> Spec1 = Spec ; Spec1 = [DH-DB|Spec] ),
+    unfolded(Spec1, DH-DB, Case, _, Stuck).
+
+fold_all(Defs, C, C1) :- ( member(D, Defs), fold_with(D, C, C2) -> fold_all(Defs, C2, C1) ; C1 = C ).
 
 uses_lemmas(Trace, Used) :-
     findall(N, ( member(steps(SL), Trace), member(Ss, SL), member(lemma(N, _)-_, Ss) ), U), sort(U, Used).
@@ -231,13 +363,12 @@ reach([], _, _, _, Ks, Ks).
 reach([K|Rs], New, Spec, NewKs, Seen, Ks) :-
     (   memberchk(K, Seen) -> reach(Rs, New, Spec, NewKs, Seen, Ks)
     ;   ( memberchk(K, NewKs) -> Src = New ; Src = Spec ),
-        findall(K2, ( member(H-B, Src), key(H, K), member(G, B), key(G, K2) ), Ns),
+        findall(K2, ( member(H-B, Src), key(H, K), member(G, B), user_lit(G), key(G, K2) ), Ns),
         append(Rs, Ns, Rs1), reach(Rs1, New, Spec, NewKs, [K|Seen], Ks) ).
 
 % ---------------------------------------------------------------- lemmas
 % Both sides become predicates over their shared variables and are deforested on the same
-% induction variable; the lemma is proved when the two derived programs are the same up to
-% the predicate name (unfold/fold preserves the least model, so both sides denote one relation).
+% induction variable; proved when the two derived programs are the same up to the name.
 prove_lemma(Spec, lemma(N, L0, R0), Result) :-
     copy_term(L0-R0, L-R),
     term_variables(L, LV), term_variables(R, RV), vint(LV, RV, Iface),
@@ -248,84 +379,180 @@ prove_lemma(Spec, lemma(N, L0, R0), Result) :-
         deforest_on(Spec, RH-R, Case, [], RP, _),
         maplist(rename_head(RN, LN), RP, RP1),
         same_clauses(LP, RP1)
-    ->  nth1(Case, Iface, IV), copy_term(LP-IV, LPc-_), Result = proved(induction_on(Case), LPc)
+    ->  copy_term(LP, LPc), Result = proved(induction_on(Case), LPc)
     ;   Result = not_proved
     ).
 
 rename_head(From, To, H-B, H1-B1) :- ren(From, To, H, H1), maplist(ren(From, To), B, B1).
 ren(From, To, G, G1) :- G =.. [F|As], ( F == From -> G1 =.. [To|As] ; G1 = G ).
 
-% same clauses up to clause order, body order and variable renaming
 same_clauses(A, B) :- length(A, N), length(B, N), same_(A, B).
 same_([], []).
 same_([C|Cs], Bs) :- select(D, Bs, Rest), variant_clause(C, D), !, same_(Cs, Rest).
 variant_clause(H1-B1, H2-B2) :- length(B1, N), length(B2, N), permutation(B1, P), (H1-P) =@= (H2-B2), !.
 
+% axioms of integer arithmetic (properties of the integers, not proved here)
+axiom(plus_assoc, [S1 is X + Y, S is S1 + Z], [V is Y + Z, S is X + V], int).
+axiom(times_assoc, [S1 is X * Y, S is S1 * Z], [V is Y * Z, S is X * V], int).
+
+% discover_lemmas(+Spec, +StuckClauses, +Known, -Found): Found holds proved(Lemma),
+% axiom(Axiom), refuted(Lemma, CounterExample) or unknown(Lemma) for each new conjecture
+discover_lemmas(Spec, Stuck, Known, Found) :-
+    findall(C, ( member(_-B, Stuck), conjecture(B, C) ), Cs0),
+    dedup_conj(Cs0, Cs),
+    exclude({Known}/[C]>>( arg(1, C, N), member(K, Known), arg(1, K, N) ), Cs, New),
+    maplist(settle(Spec), New, Found).
+% a predicate that chains with itself through a private variable: p(X,Y,W), p(W,Z,R)
+conjecture(B, lemma(Name, [L1, L2], [M1, M2])) :-
+    nth1(I, B, G1), user_lit(G1), functor(G1, P, 3), nth1(J, B, G2), J \== I, functor(G2, P, 3),
+    arg(3, G1, W), var(W), arg(1, G2, W1), W1 == W,
+    atom_concat(P, '_assoc', Name),
+    L1 =.. [P, X, Y, W0], L2 =.. [P, W0, Z, R], M1 =.. [P, Y, Z, V], M2 =.. [P, X, V, R].
+conjecture(B, lemma(Name, [L], [M])) :-
+    member(G, B), user_lit(G), functor(G, P, 3),
+    atom_concat(P, '_comm', Name), L =.. [P, X, Y, R], M =.. [P, Y, X, R].
+conjecture(B, axiom(N, L, R, T)) :-
+    member(G1, B), G1 = (S1 is E1), var(S1), compound(E1),
+    member(G2, B), G2 \== G1, G2 = (_ is E2), compound(E2), arg(1, E2, A), A == S1,
+    functor(E1, Op, 2), functor(E2, Op, 2),
+    axiom(N, L, R, T), L = [(_ is E)|_], functor(E, Op, 2).
+dedup_conj([], []).
+dedup_conj([C|Cs], [C|Rs]) :- arg(1, C, N), exclude({N}/[D]>>arg(1, D, N), Cs, Cs1), dedup_conj(Cs1, Rs).
+
+settle(_, axiom(N, L, R, T), axiom(axiom(N, L, R, T))) :- !.
+settle(Spec, lemma(N, L, R), Out) :-
+    (   prove_lemma(Spec, lemma(N, L, R), proved(_, _)) -> Out = proved(lemma(N, L, R))
+    ;   refute_lemma(Spec, lemma(N, L, R), CE) -> Out = refuted(lemma(N, L, R), CE)
+    ;   Out = unknown(lemma(N, L, R)) ).
+refute_lemma(Spec, lemma(_, L0, R0), Input) :-
+    copy_term(L0-R0, L-R), term_variables(L, LV), term_variables(R, RV), vint(LV, RV, Iface),
+    LH =.. [cl|Iface], RH =.. [cr|Iface],
+    length(Iface, NA), NI is NA - 1, length(Ins, NI), maplist(=(in(list(any))), Ins), append(Ins, [out], Mode),
+    bounded_equal([LH-L|Spec], cl/NA, [RH-R|Spec], cr/NA, Mode, 2, refuted(Input, _, _)).
+
 % ---------------------------------------------------------------- totality
-% Mode: list of in(list), in(any), out. The result has an answer for every ground input whose
-% in(list) arguments are lists.
-total(P, K, TM) :- total_(P, K, TM, []).
+% Mode: list of in(Type) / out. total(+P, +K, +Mode) holds when P has an answer for every
+% ground input whose in-arguments have the declared types: the in-argument patterns of K's
+% heads cover the types' constructors, every recursive call takes a proper subterm at one
+% fixed argument, every call is total in the mode it is called in, every is/2 has bound
+% numeric operands, and every output is bound. total/4 also returns P with each checked
+% clause body in an order where every call's inputs are bound (the order of a conjunction
+% does not change the least model).
+total(P, K, TM) :- total(P, K, TM, _).
+total(P, K, TM, P1) :-
+    b_setval(fold_order, []), b_setval(fold_num, int),
+    total_(P, K, TM, []), !,
+    b_getval(fold_order, Ord), reorder_(P, Ord, [], P1).
+
 total_(P, K, TM, Stack) :-
     clauses_of(P, K, Cs), Cs \== [],
-    covers(Cs, TM, CasePos),
-    forall(member(C, Cs), clause_total(P, K, TM, CasePos, [K|Stack], C)).
+    findall(J, nth1(J, TM, in(_)), InJs),
+    findall(T, member(in(T), TM), InTs),
+    findall(Row, ( member(H-_, Cs), findall(A, ( member(J, InJs), arg(J, H, A) ), Row) ), Rows),
+    forall(member(Row, Rows), linear(Row)),
+    covers(InTs, Rows),
+    measure(Cs, K, TM, M),
+    % a loop, not forall/2: forall would undo the recorded body orders
+    length(Cs, NC), ( NC =:= 0 -> Ixs = [] ; numlist(1, NC, Ixs) ),
+    maplist({P, K, TM, M, Stack}/[Ix, C]>>clause_total(P, K, TM, M, [K|Stack], Ix, C), Ixs, Cs).
 
-covers([H-_], TM, none) :- other_inputs_vars(H, TM, none), !.
-covers(Cs, TM, I) :-
-    nth1(I, TM, in(list)),
-    forall(member(H-_, Cs), ( arg(I, H, X), ( X == [] ; nonvar(X), X = [E|T], var(E), var(T) ) )),
-    once(( member(H1-_, Cs), arg(I, H1, X1), X1 == [] )),
-    once(( member(H2-_, Cs), arg(I, H2, X2), nonvar(X2), X2 = [_|_] )),
-    forall(member(H-_, Cs), other_inputs_vars(H, TM, I)), !.
+linear(Row) :- term_variables(Row, Vs), length(Vs, N), aggregate_all(count, ( sub_term(V, Row), var(V) ), N).
 
-other_inputs_vars(H, TM, I) :-
-    findall(J, ( nth1(J, TM, in(_)), J \== I ), Js),
-    maplist({H}/[J, A]>>arg(J, H, A), Js, As), maplist(var, As), sort(As, S), length(S, N), length(As, N),
-    ( I == none -> true ; arg(I, H, C), term_variables(C, CV), \+ ( member(A, As), member(V, CV), A == V ) ).
+% pattern-matrix coverage over the declared constructors
+covers([], Rows) :- !, Rows \== [].
+covers([T|Ts], Rows) :-
+    (   forall(member([P|_], Rows), var(P))
+    ->  maplist([[_|R], R]>>true, Rows, Rows1), covers(Ts, Rows1)
+    ;   \+ constructor(T, _, _)
+    ->  include([[P|_]]>>var(P), Rows, VRows), maplist([[_|R], R]>>true, VRows, Rows1), covers(Ts, Rows1)
+    ;   forall(constructor(T, F/A, ATs),
+               ( findall(R1, ( member([P|R], Rows), spec_row(P, F, A, R, R1) ), Rows1),
+                 append(ATs, Ts, Ts1), covers(Ts1, Rows1) ))
+    ).
+spec_row(P, _, A, R, R1) :- var(P), !, length(Fs, A), append(Fs, R, R1).
+spec_row(P, F, A, R, R1) :- functor(P, F, A), P =.. [_|As], append(As, R, R1).
 
-clause_total(P, K, TM, CasePos, Stack, H-B) :-
-    findall(J, nth1(J, TM, in(_)), InJs), maplist({H}/[J, A]>>arg(J, H, A), InJs, InAs),
-    term_variables(InAs, Bound0),
-    findall(J, nth1(J, TM, in(list)), LJs), maplist({H}/[J, A]>>arg(J, H, A), LJs, LAs),
-    include(var, LAs, LV0),
-    (   CasePos \== none, arg(CasePos, H, C), nonvar(C), C = [_|Tail] -> ListV = [Tail|LV0]
-    ;   Tail = none, ListV = LV0 ),
-    body_total(B, P, K, TM, CasePos, Tail, Stack, Bound0, ListV, Bound),
-    findall(J, nth1(J, TM, out), OutJs), maplist({H}/[J, A]>>arg(J, H, A), OutJs, OutAs),
-    term_variables(OutAs, OV), forall(member(V, OV), ( member(W, Bound), W == V )).
+% an in-argument at which every recursive call takes a proper subterm of the head's argument
+measure(Cs, K, TM, M) :-
+    (   \+ ( member(_-B, Cs), member(G, B), user_lit(G), key(G, K) ) -> M = none
+    ;   nth1(M, TM, in(_)),
+        forall(( member(H-B, Cs), member(G, B), user_lit(G), key(G, K) ),
+               ( arg(M, H, HA), arg(M, G, GA), var(GA), nonvar(HA), sub_term(S, HA), S == GA )), !
+    ).
 
-body_total([], _, _, _, _, _, _, Bound, _, Bound).
-body_total([L|Ls], P, K, TM, CasePos, Tail, Stack, Bound0, ListV, Bound) :-
-    key(L, Q), L =.. [_|Args],
-    maplist(arg_mode(Bound0, ListV), Args, QTM),
-    % output arguments are fresh distinct variables, so the call cannot fail on them
-    findall(A, ( nth1(J, QTM, out), nth1(J, Args, A) ), Outs),
-    maplist(var, Outs), sort(Outs, SO), length(SO, NO), length(Outs, NO),
-    (   Q == K
-    ->  CasePos \== none, nth1(CasePos, Args, CA), CA == Tail,
-        maplist(at_least, QTM, TM)
-    ;   \+ memberchk(Q, Stack), total_(P, Q, QTM, Stack)
+clause_total(P, K, TM, M, Stack, Ix, H-B) :-
+    head_env(H, TM, Env0, Bound0),
+    length(B, N), ( N =:= 0 -> Is = [] ; numlist(1, N, Is) ), permutation(Is, PIs),
+    maplist({B}/[I, G]>>nth1(I, B, G), PIs, BP),
+    body_total(BP, P, K, TM, M, Stack, Env0, Bound0, Bound), !,
+    forall(( nth1(J, TM, out), arg(J, H, A) ), ( term_variables(A, AV), forall(member(V, AV), vmember(V, Bound)) )),
+    b_getval(fold_order, O0), b_setval(fold_order, [K-Ix-PIs|O0]).
+
+head_env(H, TM, Env, Bound) :-
+    findall(J-T, nth1(J, TM, in(T)), JTs),
+    foldl({H}/[J-T, E0, E]>>( arg(J, H, A), bind_types(A, T, E0, E) ), JTs, [], Env),
+    pairs_keys(Env, Bound).
+bind_types(A, T, E0, [A-T|E0]) :- var(A), !.
+bind_types(A, T, E0, E) :- constructor(T, F/N, ATs), functor(A, F, N), !,
+    A =.. [_|As], pairs_of(As, ATs, Ps), foldl([X-Y, Ea, Eb]>>bind_types(X, Y, Ea, Eb), Ps, E0, E).
+bind_types(A, _, E0, E) :- term_variables(A, Vs), foldl([V, Ea, [V-any|Ea]]>>true, Vs, E0, E).
+
+env_type(Env, V, T) :- member(W-T0, Env), W == V, !, T = T0.
+
+body_total([], _, _, _, _, _, _, Bound, Bound).
+body_total([L|Ls], P, K, TM, M, Stack, Env0, Bound0, Bound) :-
+    (   L = (X is E)
+    ->  var(X), \+ vmember(X, Bound0),
+        term_variables(E, EV),
+        forall(member(V, EV), ( vmember(V, Bound0), env_type(Env0, V, T), type_le(T, num) )),
+        (   forall(member(V, EV), ( env_type(Env0, V, T), type_le(T, int) )) -> XT = int
+        ;   XT = num, b_setval(fold_num, num) ),
+        Env1 = [X-XT|Env0], Bound1 = [X|Bound0]
+    ;   builtin(L) -> fail                % a test can fail, so a clause with one is not total
+    ;   key(L, Q), L =.. [_|Args],
+        maplist(arg_mode(Env0, Bound0), Args, QTM),
+        mode_args(Args, QTM, out, Outs),
+        maplist(var, Outs), sort(Outs, SO), length(SO, NO), length(Outs, NO),
+        (   Q == K -> M \== none, maplist(mode_le, QTM, TM)
+        ;   \+ memberchk(Q, Stack), total_(P, Q, QTM, Stack) ),
+        out_types(QTM, Args, 1, P, Q, OTs),          % (no findall: it would copy the variables)
+        append(OTs, Env0, Env1),
+        term_variables(L, LV), append(LV, Bound0, Bound1)
     ),
-    term_variables(L, LVs), append(Bound0, LVs, Bound1),
-    body_total(Ls, P, K, TM, CasePos, Tail, Stack, Bound1, ListV, Bound).
+    body_total(Ls, P, K, TM, M, Stack, Env1, Bound1, Bound).
 
-arg_mode(Bound, ListV, A, M) :-
+out_types([], [], _, _, _, []).
+out_types([M|Ms], [A|As], J, P, Q, OTs) :- J1 is J + 1,
+    ( M == out -> out_type(P, Q, J, T), OTs = [A-T|R] ; OTs = R ), out_types(Ms, As, J1, P, Q, R).
+
+arg_mode(Env, Bound, A, M) :-
     term_variables(A, Vs),
-    (   forall(member(V, Vs), ( member(W, Bound), W == V ))
-    ->  ( list_term(A, ListV) -> M = in(list) ; M = in(any) )
+    (   forall(member(V, Vs), vmember(V, Bound)) -> infer_type(A, Env, T), M = in(T)
     ;   M = out ).
-list_term(A, _) :- A == [], !.
-list_term(A, LV) :- var(A), !, member(W, LV), W == A, !.
-list_term(A, LV) :- A = [_|T], list_term(T, LV).
+mode_le(in(S), in(T)) :- type_le(S, T).
+mode_le(out, out).
+out_type(P, Q, J, T) :- ( slot_type(P, Q, J, T0) -> T = T0 ; T = any ).
 
-% the recursive call's mode is at least as strong as the clause's own
-at_least(in(list), in(list)).
-at_least(in(_), in(any)).
-at_least(_, out).
+% infer_type(+Term, +Env, -Type): the most specific declared type of a bound term
+infer_type(A, Env, T) :- var(A), !, ( env_type(Env, A, T) -> true ; T = any ).
+infer_type(A, _, int) :- integer(A).
+infer_type(A, Env, T) :-
+    nonvar(A), functor(A, F, N), constructor_any(T, F/N, ATs), A =.. [_|As],
+    pairs_of(As, ATs, Ps),
+    forall(member(X-AT, Ps), ( infer_type(X, Env, XT), ( var(AT) -> AT = XT ; type_le(XT, AT) -> true ; AT = XT ) )),
+    maplist({Env}/[X-AT]>>( var(AT) -> infer_type(X, Env, AT) ; true ), Ps),
+    term_variables(T, TV), maplist(=(any), TV).
+infer_type(A, _, any) :- nonvar(A).
+
+reorder_([], _, _, []).
+reorder_([H-B|Cs], Ord, Seen, [H-B1|Cs1]) :-
+    key(H, K), aggregate_all(count, member(K, Seen), N0), Ix is N0 + 1,
+    (   memberchk(K-Ix-PIs, Ord) -> maplist({B}/[I, G]>>nth1(I, B, G), PIs, B1) ; B1 = B ),
+    reorder_(Cs, Ord, [K|Seen], Cs1).
 
 % ---------------------------------------------------------------- functionality
-% at most one answer for each ground input: heads do not overlap on the input arguments,
-% every call is functional in the mode it is called in, and every output is bound
+% at most one answer per ground input: heads do not overlap on the inputs, every call is
+% functional in the mode it is called in, and every output is bound
 functional(P, K, M) :- functional_(P, K, M, []).
 functional_(_, K, M, Seen) :- member(K-M0, Seen), M0 == M, !.
 functional_(P, K, M, Seen) :-
@@ -333,7 +560,6 @@ functional_(P, K, M, Seen) :-
     \+ ( nth1(I, Cs, C1), nth1(J, Cs, C2), I < J, inputs_overlap(C1, C2, M) ),
     forall(member(C, Cs), clause_fun(P, M, [K-M|Seen], C)).
 
-% (no findall here: it would copy the clause's variables)
 in_args(H, M, As) :- H =.. [_|Args], mode_args(Args, M, in, As).
 out_args(H, M, As) :- H =.. [_|Args], mode_args(Args, M, out, As).
 mode_args([], [], _, []).
@@ -345,43 +571,101 @@ clause_fun(P, M, Seen, H-B) :-
     in_args(H, M, InAs), term_variables(InAs, Bound0),
     foldl(lit_fun(P, Seen), B, Bound0, Bound),
     out_args(H, M, OutAs), term_variables(OutAs, OV),
-    forall(member(V, OV), ( member(W, Bound), W == V )).
+    forall(member(V, OV), vmember(V, Bound)).
+lit_fun(_, _, (X is E), Bound0, Bound) :- !,
+    term_variables(E, EV), forall(member(V, EV), vmember(V, Bound0)),
+    term_variables(X, XV), append(XV, Bound0, Bound).
+lit_fun(_, _, L, Bound, Bound) :- builtin(L), !, term_variables(L, V), forall(member(X, V), vmember(X, Bound)).
 lit_fun(P, Seen, L, Bound0, Bound) :-
     key(L, Q), L =.. [_|Args],
-    maplist({Bound0}/[A, Md]>>( term_variables(A, Vs), ( forall(member(V, Vs), ( member(W, Bound0), W == V )) -> Md = in ; Md = out ) ),
+    maplist({Bound0}/[A, Md]>>( term_variables(A, Vs), ( forall(member(V, Vs), vmember(V, Bound0)) -> Md = in ; Md = out ) ),
             Args, QM),
     functional_(P, Q, QM, Seen),
-    term_variables(L, LV), append(Bound0, LV, Bound).
+    term_variables(L, LV), append(LV, Bound0, Bound).
 
-% ---------------------------------------------------------------- list-typed argument slots
-% every answer has a list at argument I (induction on derivation height)
-list_slot(P, K, I) :- list_slot_(P, K, I, []).
-list_slot_(_, K, I, Seen) :- memberchk(K-I, Seen), !.
-list_slot_(P, K, I, Seen) :-
+% ---------------------------------------------------------------- argument types of answers
+% slot_type(+P, +K, +I, ?T): every answer of K in P has a value of type T at argument I
+% (induction on derivation height). With T unbound the type is inferred first.
+slot_type(P, K, I, T) :-
+    (   var(T) -> once(slot_candidate(P, K, I, [], T0)), T0 \== any, T = T0 ; true ),
+    slot_check(P, K, I, T, []).
+slot_candidate(P, K, I, Seen, T) :-
+    \+ memberchk(K-I, Seen),
+    clauses_of(P, K, Cs), member(H-B, Cs), arg(I, H, X),
+    term_candidate(X, B, P, [K-I|Seen], T).
+term_candidate(X, _, _, _, int) :- integer(X), !.
+term_candidate(X, B, _, _, int) :- var(X), member(G, B), G = (Y is _), Y == X, !.
+term_candidate(X, B, P, S, T) :- var(X), !,
+    member(G, B), user_lit(G), arg(J, G, Y), Y == X, key(G, Q), slot_candidate(P, Q, J, S, T).
+term_candidate(X, _, _, _, T) :- infer_type(X, [], T0), T0 \== any, generalise_type(T0, T).
+generalise_type(T0, T) :- T0 =.. [F|As], length(As, N), length(Vs, N), T1 =.. [F|Vs],
+    ( N > 0, constructor_any(T1, _, _) -> maplist(=(any), Vs), T = T1 ; T = T0 ).
+
+slot_check(_, K, I, T, Seen) :- member(K-I-T0, Seen), type_le(T0, T), !.
+slot_check(P, K, I, T, Seen) :-
     clauses_of(P, K, Cs), Cs \== [],
-    forall(member(H-B, Cs), ( arg(I, H, X), slot_list(X, B, P, [K-I|Seen]) )).
-slot_list(X, _, _, _) :- X == [], !.
-slot_list(X, B, P, S) :- nonvar(X), X = [_|T], !, slot_list(T, B, P, S).
-slot_list(X, B, P, S) :- var(X), member(G, B), key(G, Q), arg(J, G, Y), Y == X, list_slot_(P, Q, J, S), !.
+    forall(member(H-B, Cs), ( arg(I, H, X), has_type(X, T, B, P, [K-I-T|Seen]) )).
+has_type(_, T, _, _, _) :- T == any, !.
+has_type(X, T, _, _, _) :- integer(X), ( type_le(int, T) ; T == nat, X == 0 ), !.
+has_type(X, T, B, _, _) :- var(X), member(G, B), G = (Y is _), Y == X, !, type_le(int, T).
+has_type(X, T, B, P, S) :- var(X), !,
+    member(G, B), user_lit(G), arg(J, G, Y), Y == X, key(G, Q), slot_check(P, Q, J, T, S), !.
+has_type(X, T, B, P, S) :- constructor(T, F/N, ATs), functor(X, F, N), !,
+    X =.. [_|As], pairs_of(As, ATs, Ps), forall(member(A-AT, Ps), has_type(A, AT, B, P, S)).
+
+% ---------------------------------------------------------------- verification
+% verify(+Spec, +Program, +Target, +Mode, -Verdict)
+verify(Spec, Prog, K, Mode, verdict(Tot, Fun, Typ, IntArith, Ordered)) :-
+    (   total(Prog, K, Mode, Ordered) -> Tot = total(yes), b_getval(fold_num, NumT)
+    ;   Tot = total(no), Ordered = Prog, NumT = unknown ),
+    ( NumT == int -> IntArith = integer_arithmetic(yes) ; IntArith = integer_arithmetic(no) ),
+    maplist([X, Y]>>( X = in(_) -> Y = in ; Y = out ), Mode, FM),
+    ( functional(Spec, K, FM) -> Fun = functional(yes) ; Fun = functional(no) ),
+    (   forall(( nth1(J, Mode, in(T)), T \== any ), slot_type(Spec, K, J, T))
+    ->  Typ = typed_answers(yes) ; Typ = typed_answers(no) ).
 
 % ---------------------------------------------------------------- evaluation
-% top-down evaluation with a resolution-step count (and a limit, so a wrong program stops)
 answers(P, G, As) :- findall(G, solve(P, [G], 0, _), As0), sort(As0, As).
 steps(P, G, N, As) :- findall(G-N0, solve(P, [G], 0, N0), L), pairs_keys_values(L, As, Ns), sum_list(Ns, N).
 
+% cost(+P, +G, -Steps, -MaxGoals): resolution steps and the largest number of pending goals
+% (the interpreter's stack) for the first answer
+cost(P, G, Steps, Max) :- once(solve_c(P, [G], 0, Steps, 0, Max)).
+solve_c(_, [], N, N, M, M).
+solve_c(P, [G|Gs], N0, N, M0, M) :-
+    N0 < 2000000, N1 is N0 + 1,
+    (   builtin(G) -> catch(G, _, fail), Gs1 = Gs
+    ;   member(C, P), copy_term(C, H-B), unify_with_occurs_check(H, G), append(B, Gs, Gs1) ),
+    length(Gs1, L), M1 is max(M0, L),
+    solve_c(P, Gs1, N1, N, M1, M).
+
 solve(_, [], N, N).
 solve(P, [G|Gs], N0, N) :-
-    N0 < 200000, member(C, P), copy_term(C, H-B), unify_with_occurs_check(H, G),
-    N1 is N0 + 1, append(B, Gs, Gs1), solve(P, Gs1, N1, N).
+    N0 < 2000000, N1 is N0 + 1,
+    (   builtin(G) -> catch(G, _, fail), Gs1 = Gs
+    ;   member(C, P), copy_term(C, H-B), unify_with_occurs_check(H, G), append(B, Gs, Gs1) ),
+    solve(P, Gs1, N1, N).
 
-% compare two programs on every input: in(list) arguments range over all lists of length =< MaxLen
-% over Alphabet, in(any) arguments over the same lists plus two non-lists
-bounded_equal(P1, K1, P2, K2, Mode, inputs(Alphabet, MaxLen), Result) :-
-    findall(L, ( between(0, MaxLen, Len), length(L, Len), maplist([X]>>member(X, Alphabet), L) ), Ls0),
-    append(Ls0, [c, [a|c]], Any),
+% values of a type up to a size
+values(any, _, [a, b]) :- !.
+values(int, _, [0, 1, 2, 5]) :- !.
+values(num, _, [0, 1, 2, 5]) :- !.
+values(nat, D, Vs) :- !, numlist(0, D, Ns), maplist(peano, Ns, Vs).
+values(list(E), D, Vs) :- !, values(E, D, Es),
+    findall(L, ( between(0, D, Len), length(L, Len), maplist({Es}/[X]>>member(X, Es), L) ), Vs).
+values(tree(E), D, Vs) :- !, values(E, D, Es), trees(D, Es, Vs).
+peano(0, 0) :- !.
+peano(N, s(P)) :- N1 is N - 1, peano(N1, P).
+trees(0, _, [leaf]) :- !.
+trees(D, Es, Vs) :- D1 is D - 1, trees(D1, Es, Ts),
+    findall(node(L, X, R), ( member(L, Ts), member(X, Es), member(R, Ts) ), Ns), append([leaf], Ns, Vs0),
+    sort(Vs0, Vs).
+
+% bounded_equal(+P1, +K1, +P2, +K2, +Mode, +Size, -Result)
+bounded_equal(P1, K1, P2, K2, Mode, Size, Result) :-
     K1 = N1/A, K2 = N2/A,
     findall(J, nth1(J, Mode, in(_)), InJs),
-    findall(Vs, ( member(J, InJs), nth1(J, Mode, in(T)), ( T == list -> Vs = Ls0 ; Vs = Any ) ), Sets),
+    findall(Vs, ( member(J, InJs), nth1(J, Mode, in(T)), values(T, Size, Vs) ), Sets),
     aggregate_all(count, maplist(member, _, Sets), Total),
     (   maplist(member, Tuple, Sets),
         length(Args, A), place(InJs, Tuple, Args),
@@ -393,3 +677,64 @@ bounded_equal(P1, K1, P2, K2, Mode, inputs(Alphabet, MaxLen), Result) :-
     ).
 place([], [], _).
 place([J|Js], [V|Vs], Args) :- nth1(J, Args, V), place(Js, Vs, Args).
+
+% ---------------------------------------------------------------- learning the strategy
+% features of a target's specification
+features(Spec, Target, Fs) :-
+    clauses_of(Spec, Target, Cs),
+    findall(F, feature(Cs, Target, F), Fs0), sort(Fs0, Fs).
+feature(Cs, K, conjunctive) :-
+    Cs = [_-B], include(user_lit, B, U), U = [_, _|_], \+ ( member(G, B), user_lit(G), key(G, K) ).
+feature(Cs, K, result_used_after_call) :-
+    member(H-B, Cs), member(R, B), user_lit(R), key(R, K),
+    term_variables(R, RV), term_variables(H, HV), vsub(RV, HV, Out), member(O, Out),
+    member(G, B), G \== R, \+ ( user_lit(G), key(G, K) ), term_variables(G, GV), vmember(O, GV).
+feature(Cs, K, calls_on_related_arguments) :-
+    member(_-B, Cs), include({K}/[G]>>( user_lit(G), key(G, K) ), B, [R1, R2|_]),
+    arg(1, R1, A1), arg(1, R2, A2), A1 \== A2, term_variables(A1, [V]), term_variables(A2, [W]), V == W.
+feature(Cs, K, two_recursive_calls) :-
+    member(_-B, Cs), include({K}/[G]>>( user_lit(G), key(G, K) ), B, [_, _|_]).
+feature(Cs, _, arithmetic) :- member(_-B, Cs), member(G, B), compound(G), functor(G, is, 2).
+
+% learn_strategies(+Examples, -Rules): Examples = [Features-SucceededStrategies]. For each
+% strategy, sequential covering finds conjunctions of feature literals (F or not(F)) that hold
+% for examples where it succeeded and for none where it failed.
+learn_strategies(Examples, Rules) :-
+    strategies(Ss),
+    findall(S-Rule, ( member(S, Ss), learn_one(S, Examples, Rule) ), Rules).
+learn_one(S, Examples, Rule) :-
+    partition({S}/[_-Ok]>>memberchk(S, Ok), Examples, Pos0, Neg0),
+    pairs_keys(Pos0, Pos), pairs_keys(Neg0, Neg),
+    ( Pos == [] -> Rule = never ; cover(Pos, Neg, Conjs) -> Rule = any_of(Conjs) ; Rule = never ).
+cover([], _, []) :- !.
+cover(Pos, Neg, [C|Cs]) :-
+    all_literals(Pos, Neg, Lits),
+    % the shortest conjunction that excludes every negative; among those, the one that covers
+    % the most positives, then the one with the fewest negated features, then the first in
+    % the fixed order of the features
+    between(1, 3, N),
+    findall(k(Cnt, NegN, _)-C0,
+            ( length(C0, N), subseq_of(C0, Lits), \+ ( member(F, Neg), holds_all(C0, F) ),
+              aggregate_all(count, ( member(F, Pos), holds_all(C0, F) ), Cnt), Cnt > 0,
+              aggregate_all(count, member(not(_), C0), NN), NegN is -NN ), Cands0),
+    Cands0 \== [], !,
+    length(Cands0, NC), numlist(1, NC, Is), maplist([k(A, B, _)-X, I, k(A, B, O)-X]>>(O is -I), Cands0, Is, Cands),
+    max_member(_-C, Cands),
+    exclude({C}/[F]>>holds_all(C, F), Pos, Rest),
+    cover(Rest, Neg, Cs).
+all_literals(Pos, Neg, Lits) :-
+    append(Pos, Neg, All), append(All, Fs0), sort(Fs0, Fs),
+    findall(L, ( member(F, Fs), ( L = F ; L = not(F) ) ), Lits).
+subseq_of([], _).
+subseq_of([X|Xs], [X|Ys]) :- subseq_of(Xs, Ys).
+subseq_of(Xs, [_|Ys]) :- subseq_of(Xs, Ys).
+holds_all(C, Fs) :- forall(member(L, C), holds(L, Fs)).
+holds(not(F), Fs) :- !, \+ memberchk(F, Fs).
+holds(F, Fs) :- memberchk(F, Fs).
+
+% choose_order(+Rules, +Features, -Order): strategies whose learned rule holds first, then the
+% rest in the default order
+choose_order(Rules, Fs, Order) :-
+    strategies(Ss),
+    include({Rules, Fs}/[S]>>( memberchk(S-any_of(Cs), Rules), member(C, Cs), holds_all(C, Fs) ), Ss, First),
+    subtract(Ss, First, Rest), append(First, Rest, Order).
