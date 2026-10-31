@@ -1,13 +1,15 @@
 family                nodes (fixed order)nodes (MNN order)solved fixed/MNN
 dup_clause            9             11            7/7, 7/7
 dup_literal           17            26            6/6, 6/6
-subsumed_clause       17            8             6/6, 6/6
+subsumed_clause       17            6             6/6, 6/6
 implied_clause        10            13            3/3, 3/3
-dup_then_subsumed     117           93            7/7, 7/7
+dup_then_subsumed     117           88            7/7, 7/7
 pid                   107           49            5/5, 5/5
 loop2                 41            13            5/5, 5/5
-starlog               230873        82315         5/5, 5/5
-plop                  4569958       2370725       4/5, 4/5
+starlog               230873        82811         5/5, 5/5
+plop                  131298        16035         4/5, 4/5
 algebraplop           315           100           5/5, 5/5
 detlog                46            5             5/5, 5/5
 piglog2               1077          221           5/5, 5/5
+proof_types           102           183           6/6, 6/6
+(nodes counted for solved pairs only; one PLOp pair is not solved within 2 minutes in either order)

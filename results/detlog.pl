@@ -1,3 +1,3 @@
-result(detlog,less_than,true,proved(all_subsets_of_the_facts(8)),false,true,prog([num(-2),num(0),num(3)],[neg(_22838)-[num(_22838),_22838<0],sign(_22870,n)-[neg(_22870)],sign(_23724,nn)-[num(_23724),_23724>=0]])).
+result(detlog,less_than,true,proved(all_subsets_of_the_facts(8)),false,true,prog([num(-2),num(0),num(3)],[neg(_22646)-[num(_22646),_22646<0],sign(_22678,n)-[neg(_22678)],sign(_23532,nn)-[num(_23532),_23532>=0]])).
 result(detlog,at_most,true,proved(all_subsets_of_the_facts(8)),false,true,prog([score(10),score(50),score(90)],[low(_378)-[score(_378),_378=<50],grade(_392,fail)-[low(_392)],grade(_586,pass)-[score(_586),_586>50]])).
 result(detlog,extra_goal,true,proved(all_subsets_of_the_facts(16)),false,true,prog([even(2),num(1),num(2),num(5)],[small(_418)-[num(_418),_418<3],kind(_450,small)-[small(_450)],kind(_1362,large)-[num(_1362),_1362>=3,_1362>0]])).

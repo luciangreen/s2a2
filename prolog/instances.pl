@@ -8,7 +8,7 @@
 :- discontiguous inst/5.
 
 families([dup_clause, dup_literal, subsumed_clause, implied_clause, dup_then_subsumed,
-          pid, loop2, starlog, plop, algebraplop, detlog, piglog2]).
+          pid, loop2, starlog, plop, algebraplop, detlog, piglog2, proof_types]).
 
 % ---------------------------------------------------------------- bases for the redundancy families
 base(reach, [edge(a,b), edge(b,c), edge(c,d), edge(b,e)],
@@ -150,3 +150,29 @@ inst(piglog2, test, group_of_three, [src(s1), a(s1,x1), b(x1,x2), g(x2), c(s1,y1
     (ok(S) :- src(S), a(S,X), b(X,X2), g(X2), c(S,Y), d(Y))], [ok/1]).
 inst(piglog2, test, two_head_vars, [p(s1), q(t1), a(s1,x1), b(x1), c(t1,y1), d(y1),
     (pair(S,T) :- p(S), q(T), a(S,X), b(X), c(T,Y), d(Y))], [pair/2]).
+
+% ---------------------------------------------------------------- proof/types (implied type guards)
+% A guard t(V) is redundant when V also stands at a slot whose values are proved to be of type t;
+% a guard whose variable comes only from a slot outside the type (age/2, weight/2) must stay.
+inst(proof_types, train, family, [parent(ann,bob), parent(bob,cy), age(ann,70), age(eve,30),
+    (person(X) :- parent(X,_)), (person(Y) :- parent(_,Y)),
+    (grandparent(X1,Z1) :- person(X1), parent(X1,Y1), parent(Y1,Z1)),
+    (adult(X2) :- person(X2), age(X2,A2), A2 >= 18)], [grandparent/2, adult/1]).
+inst(proof_types, train, graph, [link(a,b), link(b,c), weight(c,9), weight(d,7),
+    (node(X) :- link(X,_)), (node(Y) :- link(_,Y)),
+    (two_step(X1,Z1) :- node(Z1), link(X1,Y1), link(Y1,Z1)),
+    (heavy(X2) :- node(X2), weight(X2,W2), W2 > 5)], [two_step/2, heavy/1]).
+inst(proof_types, test, sibling_two_guards, [parent(ann,bob), parent(ann,cy), parent(bob,dee),
+    (person(X) :- parent(X,_)), (person(Y) :- parent(_,Y)),
+    (sib(S,T) :- person(S), person(T), parent(P,S), parent(P,T), S \= T)], [sib/2]).
+inst(proof_types, test, renamed_with_kept_guard, [works(al,d1), works(bo,d2), boss(cy,d1), salary(al,5), salary(zed,3),
+    (employee(X) :- works(X,_)),
+    (manages(B,E) :- employee(E), works(E,D), boss(B,D)),
+    (pay(E2,S2) :- employee(E2), salary(E2,S2))], [manages/2, pay/2]).
+inst(proof_types, test, chain_through_recursion, [edge(a,b), edge(b,c), edge(c,a),
+    (node(X) :- edge(X,_)), (node(Y) :- edge(_,Y)),
+    (reach(X1,Y1) :- edge(X1,Y1)), (reach(X2,Y2) :- edge(X2,Z2), reach(Z2,Y2)),
+    (start(S) :- node(S), reach(S,_))], [start/1, reach/2]).
+inst(proof_types, test, guard_implied_by_guard, [parent(ann,bob), parent(bob,cy),
+    (person(X) :- parent(X,_)), (human(H) :- person(H)),
+    (elder(E) :- human(E), person(E), parent(E,C), parent(C,_))], [elder/1]).

@@ -1,0 +1,8 @@
+
+== proof_types
+1. del_lit when [type_implied_by_related_variable]
+learned algorithm equals the axioms: true
+  sibling_two_guards: exact=true changed=true proof=proved(all_subsets_of_the_facts(8))
+  renamed_with_kept_guard: exact=true changed=true proof=proved(all_subsets_of_the_facts(32))
+  chain_through_recursion: exact=true changed=true proof=proved(all_subsets_of_the_facts(8))
+  guard_implied_by_guard: exact=true changed=true proof=proved(all_subsets_of_the_facts(4))

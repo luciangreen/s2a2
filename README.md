@@ -35,13 +35,25 @@ S2A2 works on Prolog **terms**:
 4. **Templates.** A replaced clause becomes a template by anti-unification (Plotkin's least general generalisation) over all pairs, with predicate names generalised too.
 5. **Prover-guided refinement.** Each learned rule is replayed on its training steps, and the prover checks every rewrite on all inputs built from the program's input predicates, not just the facts given. If it finds a counter-example input, the features that disappear on that input are added as conditions. This is how S2A2 learns that PLOp may merge two calls only when the predicate is functional, although every training example happened to be functional.
 
+## proof/types (`types.pl`)
+
+The eighth MNN item uses proofs to find that one type is the same as, contained in, or related to another, because variables tie argument positions (slots) together. A type is the set of values at a slot `P/N:I`. Three sound proof rules give inclusions that hold for every input:
+
+- **flow**: `P/N:I ⊆ B` when P is defined by rules only and in each clause the head variable at I also stands at B (or at a rule-defined slot already contained in B; recursion is handled by induction on derivation height). `reach(X,Y) :- edge(X,Y). reach(X,Y) :- edge(X,Z), reach(Z,Y).` proves `reach:1 ⊆ edge:1`.
+- **cover**: a projection clause `person(X) :- parent(X,_)` proves `parent:1 ⊆ person:1`.
+- **chain**: the transitive closure of the two, e.g. `reach:1 ⊆ edge:1 ⊆ node:1`.
+
+From these come **same type** (inclusion both ways: `reach:1 = edge:1`), **related slots** (union-find over shared variables, `X \= Y` and comparisons), **refinement templates** (`num:1 --[X>0]--> pos:1`), **conversion templates** (`pos:1 --[Y is 1+2*X]--> val:2`) and **dimension checks** (`F is M*A` gives kg·m·s⁻² for force; `F is M+A` is refuted). Templates are memoised by clause shape (names and variables abstracted), so a program with the same clause shapes reuses them. `check_inclusion/6` confirms any inclusion on every input over a small domain, or returns a counter-example input.
+
+The optimisation it supports: a unary guard `t(V)` is deleted when V also stands at a slot proved to be contained in t's type (`implied_guard/4`; the S2A2 feature `type_implied_by_related_variable`). Only unary guards are deleted, because membership of each slot separately does not prove a tuple. `types_tests.pl` has 17 tests, including a semantic check of every inclusion the rules infer.
+
 ## MNN speed-up
 
 `train_mnn/2` trains a small network: one logistic unit over the operator and its cheap features, with the weights stored as Prolog facts (`mnn_weight/2`). It learns from earlier derivations and only **orders** the candidates in the search. Every candidate is still tried, so results are unchanged and only the number of nodes expanded changes. `speedup.pl` measures this leave-one-family-out.
 
 ## Results
 
-`./run_families.sh` learns each of the 12 families from its two training pairs, applies the learned algorithm to the test programs, and proves each result. `./check_results.sh` then requires every test to be exact and proved.
+`./run_families.sh` learns each of the 13 families from its two training pairs, applies the learned algorithm to the test programs, and proves each result. `./check_results.sh` then requires every test to be exact and proved.
 
 | Family | Learned algorithm | Same rule list as the axioms | Tests exact and proved |
 | --- | --- | --- | --- |
@@ -57,25 +69,28 @@ S2A2 works on Prolog **terms**:
 | AlgebraPLOp | closed_form when affine_recurrence; invert_formula | conditions not forced | 3/3 (proved with the index type fixed) |
 | Detlog | complement_guard | conditions not forced | 3/3 |
 | Piglog2 | extract | conditions not forced | 3/3 |
+| proof/types | del_lit when type_implied_by_related_variable | yes | 4/4 |
 
-**Total: 40 of 40 tests exact (same output as the axioms) and proved.**
+**Total: 44 of 44 tests exact (same output as the axioms) and proved.**
 
 - "Conditions not forced" means no training step had a negative, so no condition was needed to separate them. The operator only fires where it is sound, so the output still equals the axioms' output.
 - AlgebraPLOp's closed form is proved with the index facts held fixed. With a gap in the index (for example, n(2) missing) the recurrence stops but the formula does not, and the prover reports that counter-example.
 
-MNN speed-up (search nodes to find each pair's derivation, trained leave-one-family-out, `results/speedup.txt`): **4,802,587 nodes in fixed order, 2,453,579 in MNN order (2.0x fewer), with the same answers.** The largest gains are Detlog (9.2x), Piglog2 (4.9x), loop2 and AlgebraPLOp (3.2x) and Starlog (2.8x). On the three smallest searches (under 30 nodes) it is slightly slower.
+MNN speed-up (search nodes to find each pair's derivation, trained leave-one-family-out, `results/speedup.txt`; nodes counted for solved pairs only): **364,029 nodes in fixed order, 99,561 in MNN order (3.7x fewer), with the same answers.** The largest gains are Detlog (9.2x), PLOp (8.2x), Piglog2 (4.9x), loop2 and AlgebraPLOp (3.2x) and Starlog (2.8x). It is slower on proof/types (0.56x) and on three of the four searches under 30 nodes. One PLOp pair is not solved within 2 minutes in either order; it is left out of the counts, because an unsolved pair's count measures the machine's speed, not the search.
 
 Time limits nest correctly: `limited/2` catches only its own limit, so an enclosing limit is never swallowed. Without this, AlgebraPLOp's search ran past its limit for over 40 minutes. With it, the search takes 315 nodes.
 
-`calc/calc_check.py` checks the worked calculations quoted in the report (15/15). `calc/flies.lp` is the hand-written clingo inversion example.
+`calc/calc_check.pl` checks the worked calculations quoted in the report (15/15; run `swipl calc/calc_check.pl`, which exits 1 if any check fails). `calc/flies.lp` is the hand-written clingo inversion example.
 
 ## Files
 
 | File | Contents |
 | --- | --- |
 | `prolog/s2a2.pl` | representation, operators, features, derivation search, learning, refinement, MNN |
+| `prolog/types.pl` | proof/types: type inclusions, same and related types, templates, dimensions, implied guards |
+| `prolog/types_tests.pl` | 17 tests for proof/types |
 | `prolog/axioms.pl` | the reference optimisers, written before learning ("optimise the algorithm at the start") |
-| `prolog/instances.pl` | 12 families × (2 training + 1 to 5 test) unoptimised programs |
+| `prolog/instances.pl` | 13 families × (2 training + 1 to 5 test) unoptimised programs |
 | `prolog/experiment.pl` | learn, apply to tests, compare with the axioms, prove |
 | `prolog/speedup.pl` | search nodes with and without the MNN ordering |
 | `prolog/prover.pl` | the prover (shared with renn_pipeline) |

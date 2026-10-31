@@ -53,6 +53,7 @@
 :- use_module(library(ordsets)).
 :- use_module(library(pairs)).
 :- use_module(prover).
+:- use_module(types, [implied_guard/4]).
 
 % ---------------------------------------------------------------- representation
 program_from_clauses(Cs, prog(Facts, Rules)) :-
@@ -302,9 +303,13 @@ features(del_clause(I), P, Targets, Fs) :-
         ; B = [_, _], other_rules_imply(P, I) -> F = implied_by_the_other_clauses
         ; fail )), Fs0),
     sort(Fs0, Fs).
-features(del_lit(I, J), prog(_, Rs), _, Fs) :-
-    nth1(I, Rs, _-B), nth1(J, B, G),
-    findall(F, ( ( nth1(J2, B, G2), J2 \== J, G2 == G -> F = repeats_another_literal ; fail ) ), Fs0), sort(Fs0, Fs).
+features(del_lit(I, J), P, _, Fs) :-
+    P = prog(_, Rs), nth1(I, Rs, _-B), nth1(J, B, G),
+    findall(F, ( ( nth1(J2, B, G2), J2 \== J, G2 == G -> F = repeats_another_literal ; fail )
+               % proof/types: a unary guard t(V) is implied when V stands at another literal's slot
+               % that is proved to be contained in t's type (types.pl)
+               ; ( functor(G, _, 1), quiet(implied_guard(P, I, J, _)) -> F = type_implied_by_related_variable ; fail ) ),
+            Fs0), sort(Fs0, Fs).
 features(unfold(I, J), P, Targets, Fs) :-
     P = prog(_, Rs), nth1(I, Rs, _-B), nth1(J, B, G), key(G, K), defs(P, K, [_-DB]),
     findall(F, ( calls(P, K, 1), F = callee_called_once

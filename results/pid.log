@@ -1,8 +1,3 @@
-Warning: /home/claude/v2/s2a2/prolog/prover.pl:324:
-Warning:    Clauses of prover:builtins_hold/2 are not together in the source-file
-Warning:    Earlier definition at /home/claude/v2/s2a2/prolog/prover.pl:317
-Warning:    Current predicate: prover:arith_error/1
-Warning:    Use :- discontiguous prover:builtins_hold/2. to suppress this message
 
 == pid
 1. del_clause when [calls_itself_unchanged]
