@@ -1,0 +1,1 @@
+result(implied_clause,path3_last,true,proved(all_subsets_of_the_facts(16)),true,true,prog([link(a,b),link(b,c),link(c,a),link(c,d)],[node(_6638)-[link(_6638,_6644)],path(_6660,_6662)-[link(_6660,_6662)],path(_6684,_6686)-[link(_6684,_6698),path(_6698,_6686)]])).

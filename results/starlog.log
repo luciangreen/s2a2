@@ -1,0 +1,13 @@
+Warning: /home/claude/v2/s2a2/prolog/prover.pl:324:
+Warning:    Clauses of prover:builtins_hold/2 are not together in the source-file
+Warning:    Earlier definition at /home/claude/v2/s2a2/prolog/prover.pl:317
+Warning:    Current predicate: prover:arith_error/1
+Warning:    Use :- discontiguous prover:builtins_hold/2. to suppress this message
+
+== starlog
+1. unfold when []
+2. del_clause when [defines_unused_non_target]
+learned algorithm equals the axioms: false
+  chain2: exact=true changed=true proof=proved(all_subsets_of_the_facts(16))
+  chain4: exact=true changed=true proof=proved(all_subsets_of_the_facts(16))
+  unary_end: exact=true changed=true proof=proved(all_subsets_of_the_facts(8))

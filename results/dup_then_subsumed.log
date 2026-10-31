@@ -1,0 +1,15 @@
+Warning: /home/claude/v2/s2a2/prolog/prover.pl:324:
+Warning:    Clauses of prover:builtins_hold/2 are not together in the source-file
+Warning:    Earlier definition at /home/claude/v2/s2a2/prolog/prover.pl:317
+Warning:    Current predicate: prover:arith_error/1
+Warning:    Use :- discontiguous prover:builtins_hold/2. to suppress this message
+
+== dup_then_subsumed
+1. del_clause when [duplicate_of_another_clause]
+2. del_clause when [subsumed_by_other_clause]
+learned algorithm equals the axioms: true
+  grandparent_last: exact=true changed=true proof=proved(syntactic([dup_clause((grandparent(_7156,_7158):-[parent(_7156,_7170),parent(_7170,_7158)])),subsumed((grandparent(_7290,_7292):-[parent(_7290,_7304),parent(_7304,_7292),parent(_7292,_7290)]),by((grandparent(_7156,_7158):-[parent(_7156,_7170),parent(_7170,_7158)])))]))
+  sibling_last: exact=true changed=true proof=proved(syntactic([dup_clause((sibling(_12536,_12538):-[parent(_12548,_12536),parent(_12548,_12538),_12536\=_12538])),subsumed((sibling(_12694,_12696):-[parent(_12706,_12694),parent(_12706,_12696),_12694\=_12696,parent(_12696,_12694)]),by((sibling(_12536,_12538):-[parent(_12548,_12536),parent(_12548,_12538),_12536\=_12538])))]))
+  compound_last: exact=true changed=true proof=proved(syntactic([dup_clause((r(_12548,_12560):-[a(_12548,_12560)])),subsumed((r(_12734,_12736):-[a(_12734,_12736),a(_12736,_12734)]),by((r(_12548,_12560):-[a(_12548,_12560)])))]))
+  path3_last: exact=true changed=true proof=proved(syntactic([dup_clause((path(_16550,_16552):-[link(_16550,_16552)])),subsumed((path(_16768,_16770):-[link(_16768,_16770),link(_16770,_16768)]),by((path(_16550,_16552):-[link(_16550,_16552)])))]))
+  path3_first: exact=true changed=true proof=proved(syntactic([dup_clause((path(_16676,_16678):-[link(_16676,_16678)])),dup_clause((path(_16574,_16576):-[link(_16574,_16588),path(_16588,_16576)]))]))

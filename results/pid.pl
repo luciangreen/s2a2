@@ -1,0 +1,3 @@
+result(pid,no_loop_clause,true,proved(all_subsets_of_the_facts(4)),true,true,prog([link(a,b),link(b,c)],[reach(_2910,_2912)-[link(_2910,_2912)],reach(_2934,_2936)-[link(_2934,_2948),reach(_2948,_2936)]])).
+result(pid,extra_rule,true,proved(all_subsets_of_the_facts(8)),true,true,prog([arc(a,b),arc(b,c),arc(c,a)],[node(_7954)-[arc(_7954,_7960)],conn(_7976,_7978)-[arc(_7976,_7978)],conn(_8000,_8002)-[arc(_8000,_8014),conn(_8014,_8002)]])).
+result(pid,loop_clause_first,true,proved(all_subsets_of_the_facts(8)),true,true,prog([road(a,b),road(b,c),road(c,d)],[trip(_7978,_7980)-[road(_7978,_7980)],trip(_8002,_8004)-[road(_8002,_8016),trip(_8016,_8004)]])).

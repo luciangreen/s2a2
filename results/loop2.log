@@ -1,0 +1,12 @@
+Warning: /home/claude/v2/s2a2/prolog/prover.pl:324:
+Warning:    Clauses of prover:builtins_hold/2 are not together in the source-file
+Warning:    Earlier definition at /home/claude/v2/s2a2/prolog/prover.pl:317
+Warning:    Current predicate: prover:arith_error/1
+Warning:    Use :- discontiguous prover:builtins_hold/2. to suppress this message
+
+== loop2
+1. unfold when []
+learned algorithm equals the axioms: false
+  arity2: exact=true changed=true proof=proved(all_subsets_of_the_facts(4))
+  extra_goal: exact=true changed=true proof=proved(all_subsets_of_the_facts(8))
+  two_callers: exact=true changed=true proof=proved(all_subsets_of_the_facts(4))
