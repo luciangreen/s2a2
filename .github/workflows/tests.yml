@@ -24,3 +24,5 @@ jobs:
         run: ./check_results.sh
       - name: Check the worked calculations in the report
         run: swipl calc/calc_check.pl
+      - name: proof/types tests
+        run: cd prolog && swipl -q -g main -t 'halt(1)' types_tests.pl

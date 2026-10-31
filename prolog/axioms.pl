@@ -33,3 +33,5 @@ axioms(algebraplop, algorithm([rule(closed_form, [affine_recurrence]),
 axioms(detlog, algorithm([rule(complement_guard, [negated_single_guard])])).
 % Piglog2: independent groups of goals become separate predicates (can run concurrently)
 axioms(piglog2, algorithm([rule(extract, [independent_group])])).
+% proof/types: a type guard is deleted when a related variable proves it (types.pl)
+axioms(proof_types, algorithm([rule(del_lit, [type_implied_by_related_variable])])).

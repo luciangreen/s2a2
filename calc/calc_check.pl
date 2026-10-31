@@ -75,4 +75,8 @@ main :-
     % 8 logistic unit
     Zs is -1.0 + 2.0 + 1.5, sig(Zs, S8),
     ok(abs(S8 - 0.9241) < 1.0e-4, "score = sigmoid(-1 + 2 + 1.5) = sigmoid(2.5) = 0.9241"),
+    % 9 proof/types: exhaustive check size and units of F = m*a
+    ok(2 ** 9 =:= 512, "reach:2 in edge:2 checked on 2^9 = 512 inputs (edge over {a,b,c})"),
+    UF0 = [kg-1, m-1, s-(-2)], append([kg-1], [m-1, s-(-2)], UF1), msort(UF1, UF), msort(UF0, UF0s),
+    ok(UF == UF0s, "units: [F] = [M][A] = kg * m s^-2 = kg m s^-2"),
     ( bad -> halt(1) ; true ).

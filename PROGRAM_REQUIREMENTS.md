@@ -22,10 +22,12 @@ Learn an optimisation algorithm (a list of rewrite rules with conditions) from t
 | R12 | MNN speed-up: a logistic unit, trained leave-one-family-out, orders the search candidates; results unchanged | done (`train_mnn/2`, `speedup.pl`) |
 | R13 | S2GN coverage fix: the grammar always parses every input it was learned from | done (`s2gn_cover.pl`) |
 | R14 | Time limits on every least-model and equivalence call so recursive programs cannot hang learning | done |
+| R15 | proof/types: prove type inclusions, same types and related types from shared variables; templates; dimensions; memo | done (`types.pl`, 17 tests) |
+| R16 | Delete a type guard that a related variable proves (feature `type_implied_by_related_variable`) | done (`proof_types` family, 4/4) |
 
 ## Results (`results/`)
 
-All 12 families: every test result equals the axioms' result. Every result is proved equal to the original, except AlgebraPLOp. Its closed form is proved only with the index type held fixed: a gap in the index facts gives a counter-example, which is reported.
+All 13 families (44 tests): every test result equals the axioms' result. Every result is proved equal to the original, except AlgebraPLOp. Its closed form is proved only with the index type held fixed: a gap in the index facts gives a counter-example, which is reported.
 
 ## Work remaining
 
@@ -35,3 +37,4 @@ All 12 families: every test result equals the axioms' result. Every result is pr
 4. **Plain data words.** Data words (not names) inside strings still need S2GN symbols. Connect `s2gn_cover.pl` for string arguments.
 5. **Replace s2a in mnns.** Write an adapter so the mnns repository can call `learn/2` and `apply_algorithm/5` instead of the address/affine finder.
 6. **More operators.** Loop fusion, accumulator introduction and tail-recursion conversion.
+7. **Richer types.** proof/types proves inclusion of single slots. Tuple types (two slots together), negated types (`\+ t(X)`), and inclusions that depend on facts rather than holding for every input are not yet proved. Dimensions need unit declarations; inferring units from data is open.
