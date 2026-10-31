@@ -1,82 +1,294 @@
-== 1. Lemmas (proved by deforesting both sides on the same induction variable)
+== 1. The lemma database
 
-  assoc: app(X,Y,W), app(W,Z,R)  <=>  app(Y,Z,V), app(X,V,R)
-  proved (induction_on(1)); both sides become
-    assoc_lhs([],A,B,C) :- app(A,B,C).
-    assoc_lhs([A|B],C,D,[A|E]) :- assoc_lhs(B,C,D,E).
-  assoc_is_proved: ok
+  A lemma about user predicates is admitted only once both sides deforest to the same program.
 
-  commutes: app(X,Y,R)  <=>  app(Y,X,R): not_proved
-  bounded check: refuted(input([[a],[b]]),first([cl([a],[b],[a,b])]),second([cl([a],[b],[b,a])]))
-  false_lemma_not_proved_and_refuted: ok
+  app(X,Y,W), app(W,Z,R) <=> app(Y,Z,V), app(X,V,R): proved (induction_on(1)); both sides become
+    app_assoc_lhs([],A,B,C) :- app(A,B,C).
+    app_assoc_lhs([A|B],C,D,[A|E]) :- app_assoc_lhs(B,C,D,E).
+  assoc_proved: ok
 
-== 2. Deforestation: app3(X,Y,Z,R) :- app(X,Y,W), app(W,Z,R)
+  app(X,Y,R) <=> app(Y,X,R):
+    app_comm refuted by input([[a],[b]])
+  commutativity_refuted: ok
+  Integer axioms (not proved here; used only where their variables are integers):
+    plus_assoc (int): [A is B+C,D is A+E]  <=>  [F is C+E,D is B+F]
+    times_assoc (int): [A is B*C,D is A*E]  <=>  [F is C*E,D is B*F]
 
-  strategy deforest, lemmas used [], derived:
-    app3([],A,B,C) :- app(A,B,C).
-    app3([A|B],C,D,[A|E]) :- app3(B,C,D,E).
-    app([],A,A).
-    app([A|B],C,[A|D]) :- app(B,C,D).
+== 2. Six specifications, each from an EMPTY lemma database
+
+--- app3
+  specification:
+    app3(A,B,C,D) :- app(A,B,E), app(E,C,D).
+  strategy: deforest (attempt 1); lemmas used: []
   derivation:
-    unfold body literal 1:
+    definition: app3(A,B,C,D) :- app(A,B,E), app(E,C,D).
+    unfold body literal 1, then normalise:
     app3([],A,B,C) :- app(A,B,C).
     app3([A|B],C,D,[A|E]) :- app(B,C,F), app(F,D,E).
     fold(app3), then normalise:
     app3([A|B],C,D,[A|E]) :- app3(B,C,D,E).
-  correctness: unfold/fold only, so the least model is preserved (Tamaki-Sato)
-  bounded check: equal_on(3375)
-  app3_deforested_and_equal: ok
-  steps for X and Y of length 40: 123 (spec) vs 82 (derived)
-  app3_fewer_steps: ok
-
-== 3. Naive reverse to accumulator reverse
-
-  specification:
+  derived (bodies ordered for the mode):
+    app3([],A,B,C) :- app(A,B,C).
+    app3([A|B],C,D,[A|E]) :- app3(B,C,D,E).
     app([],A,A).
     app([A|B],C,[A|D]) :- app(B,C,D).
+  proof:
+    unfold/fold only: least model preserved (Tamaki-Sato), so equal in every mode
+  proved: ok
+    bounded check: equal_on(450)
+  bounded_equal: ok
+  cost of the first answer (resolution steps / most pending goals):
+    size  specification  derived
+    16       51 / 2          34 / 1
+    64      195 / 2          130 / 1
+    256      771 / 2          514 / 1
+  cheaper: ok
+
+--- rev
+  specification:
     rev([],[]).
     rev([A|B],C) :- rev(B,D), app(D,[A],C).
-
-  with an empty lemma database: no_derivation
-  no_derivation_without_the_lemma: ok
-  lemma database (proved lemmas only): [assoc]
-  database_holds_only_proved_lemmas: ok
-
-  strategy accumulate, lemmas used [assoc], derived:
-    rev([],[]).
-    rev([A|B],C) :- rev_acc(B,[A],C).
-    rev_acc([],A,A).
-    rev_acc([A|B],C,D) :- rev_acc(B,[A|C],D).
+  strategy: accumulate (attempt 2); lemmas used: [app_assoc]
+  discovered when stuck:
+    app_assoc proved: [app(A,B,C),app(C,D,E)]  <=>  [app(B,D,F),app(A,F,E)]
+    app_comm refuted by input([[a],[b]])
   derivation:
-    eureka definition: rev_acc(A,B,C) :- rev(A,D), app(D,B,C).
-      (the goals after the recursive call, [app(D,[E],C)], generalised to [app(D,B,C)])
-    unfold body literal 1:
+    eureka (accumulate): rev_acc(A,B,C) :- rev(A,D), app(D,B,C).
+      the consumers [app(D,[E],C)] generalised to [app(D,B,C)]
+    unfold body literal 1, then normalise:
     rev_acc([],A,A).
     rev_acc([A|B],C,D) :- rev(B,E), app(E,[A],F), app(F,C,D).
-    lemma(assoc,lr), then normalise:
+    lemma(app_assoc,lr), then normalise:
     rev_acc([A|B],C,D) :- rev(B,E), app(E,[A|C],D).
     fold(rev_acc), then normalise:
     rev_acc([A|B],C,D) :- rev_acc(B,[A|C],D).
-    fold the specification's own clauses with the eureka definition:
+    fold the specification's own clauses with the definition:
     rev([],[]).
     rev([A|B],C) :- rev_acc(B,[A],C).
+  derived (bodies ordered for the mode):
+    rev([],[]).
+    rev([A|B],C) :- rev_acc(B,[A],C).
+    rev_acc([],A,A).
+    rev_acc([A|B],C,D) :- rev_acc(B,[A|C],D).
+  proof:
+    sound: every step keeps every clause true in the specification's least model
+    derived program total for [in(list(any)),out]: yes
+    specification functional: yes
+    specification answers only typed inputs: yes
+    every is/2 on integers: yes
+    => same least model: equal in every mode
+  proved: ok
+    bounded check: equal_on(255)
+  bounded_equal: ok
+  cost of the first answer (resolution steps / most pending goals):
+    size  specification  derived
+    16      153 / 17         17 / 1
+    64     2145 / 65         65 / 1
+    256    33153 / 257        257 / 1
+  cheaper: ok
 
-  correctness for every ground first argument:
-    sound: each step keeps every clause true in the specification's least model
-    derived rev(+list,-) answers every list input: yes
-    specification rev(+,-) has at most one answer: yes
-    specification answers only list inputs: yes
-    so the derived program has exactly the specification's answers on every ground input
-  reverse_proved: ok
-    bounded check (independent): equal_on(255)
-  reverse_bounded_equal: ok
-  reverse_has_no_append: ok
+--- flat
+  specification:
+    flat(leaf,[]).
+    flat(node(A,B,C),D) :- flat(A,E), flat(C,F), app(E,[B|F],D).
+  strategy: accumulate (attempt 2); lemmas used: [app_assoc]
+  discovered when stuck:
+    app_assoc proved: [app(A,B,C),app(C,D,E)]  <=>  [app(B,D,F),app(A,F,E)]
+    app_comm refuted by input([[a],[b]])
+  derivation:
+    eureka (accumulate): flat_acc(A,B,C) :- flat(A,D), app(D,B,C).
+      the consumers [app(D,[E|F],C)] generalised to [app(D,B,C)]
+    unfold body literal 1, then normalise:
+    flat_acc(leaf,A,A).
+    flat_acc(node(A,B,C),D,E) :- flat(A,F), flat(C,G), app(F,[B|G],H), app(H,D,E).
+    lemma(app_assoc,lr), then normalise:
+    flat_acc(node(A,B,C),D,E) :- flat(A,F), flat(C,G), app(G,D,H), app(F,[B|H],E).
+    fold(flat_acc), then normalise:
+    flat_acc(node(A,B,C),D,E) :- flat_acc(A,[B|F],E), flat(C,G), app(G,D,F).
+    fold(flat_acc), then normalise:
+    flat_acc(node(A,B,C),D,E) :- flat_acc(A,[B|F],E), flat_acc(C,D,F).
+    fold the specification's own clauses with the definition:
+    flat(leaf,[]).
+    flat(node(A,B,C),D) :- flat_acc(A,[B|E],D), flat(C,E).
+  derived (bodies ordered for the mode):
+    flat(leaf,[]).
+    flat(node(A,B,C),D) :- flat(C,E), flat_acc(A,[B|E],D).
+    flat_acc(leaf,A,A).
+    flat_acc(node(A,B,C),D,E) :- flat_acc(C,D,F), flat_acc(A,[B|F],E).
+  proof:
+    sound: every step keeps every clause true in the specification's least model
+    derived program total for [in(tree(any)),out]: yes
+    specification functional: yes
+    specification answers only typed inputs: yes
+    every is/2 on integers: yes
+    => same least model: equal in every mode
+  proved: ok
+    bounded check: equal_on(723)
+  bounded_equal: ok
+  cost of the first answer (resolution steps / most pending goals):
+    size  specification  derived
+    16      169 / 33         33 / 2
+    64     2209 / 129        129 / 2
+    256    33409 / 513        513 / 2
+  cheaper: ok
 
-  resolution steps for rev(L,R):
-    length  naive  derived
-     8     45        9
-    16    153       17
-    32    561       33
-    64   2145       65
-    128   8385      129
-  reverse_linear: ok
+--- sum
+  specification:
+    sum([],0).
+    sum([A|B],C) :- sum(B,D), C is D+A.
+  strategy: accumulate (attempt 2); lemmas used: [plus_assoc]
+  discovered when stuck:
+    plus_assoc (int axiom): [A is B+C,D is A+E]  <=>  [F is C+E,D is B+F]
+  derivation:
+    eureka (accumulate): sum_acc(A,B,C) :- sum(A,D), B is D+C.
+      the consumers [B is D+E] generalised to [B is D+C]
+    unfold body literal 1, then normalise:
+    sum_acc([],A,B) :- A is 0+B.
+    sum_acc([A|B],C,D) :- sum(B,E), F is E+A, C is F+D.
+    lemma(plus_assoc,lr), then normalise:
+    sum_acc([A|B],C,D) :- sum(B,E), F is A+D, C is E+F.
+    fold(sum_acc), then normalise:
+    sum_acc([A|B],C,D) :- sum_acc(B,C,E), E is A+D.
+    fold the specification's own clauses with the definition:
+    sum([],0).
+    sum([A|B],C) :- sum_acc(B,C,A).
+  derived (bodies ordered for the mode):
+    sum([],0).
+    sum([A|B],C) :- sum_acc(B,C,A).
+    sum_acc([],A,B) :- A is 0+B.
+    sum_acc([A|B],C,D) :- E is A+D, sum_acc(B,C,E).
+  proof:
+    sound: every step keeps every clause true in the specification's least model
+    derived program total for [in(list(int)),out]: yes
+    specification functional: yes
+    specification answers only typed inputs: no
+    every is/2 on integers: yes
+    => equal on every input of the declared types
+  proved: ok
+    bounded check: equal_on(341)
+  bounded_equal: ok
+  cost of the first answer (resolution steps / most pending goals):
+    size  specification  derived
+    16       33 / 17         33 / 2
+    64      129 / 65         129 / 2
+    256      513 / 257        513 / 2
+  cheaper: ok
+
+--- len
+  specification:
+    len([],0).
+    len([A|B],C) :- len(B,D), C is D+1.
+  strategy: accumulate (attempt 2); lemmas used: [plus_assoc]
+  discovered when stuck:
+    plus_assoc (int axiom): [A is B+C,D is A+E]  <=>  [F is C+E,D is B+F]
+  derivation:
+    eureka (accumulate): len_acc(A,B,C) :- len(A,D), B is D+C.
+      the consumers [B is D+1] generalised to [B is D+C]
+    unfold body literal 1, then normalise:
+    len_acc([],A,B) :- A is 0+B.
+    len_acc([A|B],C,D) :- len(B,E), F is E+1, C is F+D.
+    lemma(plus_assoc,lr), then normalise:
+    len_acc([A|B],C,D) :- len(B,E), F is 1+D, C is E+F.
+    fold(len_acc), then normalise:
+    len_acc([A|B],C,D) :- len_acc(B,C,E), E is 1+D.
+    fold the specification's own clauses with the definition:
+    len([],0).
+    len([A|B],C) :- len_acc(B,C,1).
+  derived (bodies ordered for the mode):
+    len([],0).
+    len([A|B],C) :- len_acc(B,C,1).
+    len_acc([],A,B) :- A is 0+B.
+    len_acc([A|B],C,D) :- E is 1+D, len_acc(B,C,E).
+  proof:
+    sound: every step keeps every clause true in the specification's least model
+    derived program total for [in(list(any)),out]: yes
+    specification functional: yes
+    specification answers only typed inputs: yes
+    every is/2 on integers: yes
+    => same least model: equal in every mode
+  proved: ok
+    bounded check: equal_on(255)
+  bounded_equal: ok
+  cost of the first answer (resolution steps / most pending goals):
+    size  specification  derived
+    16       33 / 17         33 / 2
+    64      129 / 65         129 / 2
+    256      513 / 257        513 / 2
+  cheaper: ok
+
+--- fib
+  specification:
+    fib(0,0).
+    fib(s(0),1).
+    fib(s(s(A)),B) :- fib(s(A),C), fib(A,D), B is C+D.
+  strategy: tuple (attempt 3); lemmas used: []
+  derivation:
+    eureka (tuple): fib_tup(A,B,C) :- fib(s(A),B), fib(A,C).
+    unfold body literal 1, then normalise:
+    fib_tup(0,1,0).
+    fib_tup(s(A),B,C) :- fib(s(A),D), fib(A,E), B is D+E, fib(s(A),C).
+    merge, then normalise:
+    fib_tup(s(A),B,C) :- fib(s(A),C), fib(A,D), B is C+D.
+    fold(fib_tup), then normalise:
+    fib_tup(s(A),B,C) :- fib_tup(A,C,D), B is C+D.
+    fold the specification's own clauses with the definition:
+    fib(0,0).
+    fib(s(0),1).
+    fib(s(s(A)),B) :- fib_tup(A,C,D), B is C+D.
+  derived (bodies ordered for the mode):
+    fib(0,0).
+    fib(s(0),1).
+    fib(s(s(A)),B) :- fib_tup(A,C,D), B is C+D.
+    fib_tup(0,1,0).
+    fib_tup(s(A),B,C) :- fib_tup(A,C,D), B is C+D.
+  proof:
+    sound: every step keeps every clause true in the specification's least model
+    derived program total for [in(nat),out]: yes
+    specification functional: yes
+    specification answers only typed inputs: yes
+    every is/2 on integers: yes
+    => same least model: equal in every mode
+  proved: ok
+    bounded check: equal_on(17)
+  bounded_equal: ok
+  cost of the first answer (resolution steps / most pending goals):
+    size  specification  derived
+    10      265 / 19         19 / 10
+    15     2959 / 29         29 / 15
+    20    32836 / 39         39 / 20
+  cheaper: ok
+
+== 3. A second mode: both arguments given
+
+  Where the least models are proved equal, the programs agree in every mode. Checked here
+  with every pair of inputs given (+,+): both accept exactly the same pairs.
+  rev [in(list(any)),in(list(any))]: equal_on(225)
+  second_mode: ok
+  flat [in(tree(any)),in(list(any))]: equal_on(133)
+  second_mode: ok
+  fib [in(nat),in(int)]: equal_on(36)
+  second_mode: ok
+
+== 4. Learning which strategy to try first (leave one out)
+
+  app3: features [conjunctive]; succeeds with [deforest]
+  rev: features [result_used_after_call]; succeeds with [accumulate]
+  flat: features [result_used_after_call,two_recursive_calls]; succeeds with [accumulate]
+  sum: features [arithmetic,result_used_after_call]; succeeds with [accumulate]
+  len: features [arithmetic,result_used_after_call]; succeeds with [accumulate]
+  fib: features [arithmetic,calls_on_related_arguments,result_used_after_call,two_recursive_calls]; succeeds with [tuple]
+
+  rules learned from all six:
+    deforest when any_of([[conjunctive]])
+    accumulate when any_of([[not(calls_on_related_arguments),result_used_after_call]])
+    tuple when any_of([[calls_on_related_arguments]])
+
+  attempts until a derivation (held-out example; learned order vs the default order):
+    app3: learned [accumulate,deforest,tuple] -> 2, default -> 1
+    rev: learned [accumulate,deforest,tuple] -> 1, default -> 2
+    flat: learned [accumulate,deforest,tuple] -> 1, default -> 2
+    sum: learned [accumulate,deforest,tuple] -> 1, default -> 2
+    len: learned [accumulate,deforest,tuple] -> 1, default -> 2
+    fib: learned [accumulate,deforest,tuple] -> 3, default -> 3
+  total attempts: learned 9, default 12
+  learned_order_no_worse: ok
