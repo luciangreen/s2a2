@@ -26,3 +26,9 @@ jobs:
         run: swipl calc/calc_check.pl
       - name: proof/types tests
         run: cd prolog && swipl -q -g main -t 'halt(1)' types_tests.pl
+      - name: fold tests (side conditions of unfold, fold, lemmas, totality)
+        run: cd prolog && swipl -q -g main -t 'halt(1)' fold_tests.pl
+      - name: Spec to algorithm examples, and the committed results must not change
+        run: |
+          cd prolog && swipl -q -g main -t 'halt(1)' fold_examples.pl > /dev/null
+          git diff --exit-code ../results/fold.txt

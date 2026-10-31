@@ -24,6 +24,10 @@ Learn an optimisation algorithm (a list of rewrite rules with conditions) from t
 | R14 | Time limits on every least-model and equivalence call so recursive programs cannot hang learning | done |
 | R15 | proof/types: prove type inclusions, same types and related types from shared variables; templates; dimensions; memo | done (`types.pl`, 17 tests) |
 | R16 | Delete a type guard that a related variable proves (feature `type_implied_by_related_variable`) | done (`proof_types` family, 4/4) |
+| R17 | Spec to algorithm: unfold, fold and eureka definitions, with the Tamaki–Sato fold condition checked on every step | done (`fold.pl`) |
+| R18 | A lemma database that admits a lemma only after proving it (both sides deforested to the same program) | done (`prove_lemma/3`; associativity of append proved, commutativity refused) |
+| R19 | Prove a derived program equal to its specification on every ground input: soundness of each step, plus totality of the result, functionality of the specification and list-typed answers | done (`total/3`, `functional/3`, `list_slot/3`); naive reverse → accumulator reverse proved |
+| R20 | An independent bounded check that compares two programs on every input up to a size and returns a counter-example | done (`bounded_equal/7`) |
 
 ## Results (`results/`)
 
@@ -36,5 +40,7 @@ All 13 families (44 tests): every test result equals the axioms' result. Every r
 3. **Bigger programs.** Iterative deepening is limited to depth 8. Use the MNN ordering with beam search for longer derivations.
 4. **Plain data words.** Data words (not names) inside strings still need S2GN symbols. Connect `s2gn_cover.pl` for string arguments.
 5. **Replace s2a in mnns.** Write an adapter so the mnns repository can call `learn/2` and `apply_algorithm/5` instead of the address/affine finder.
-6. **More operators.** Loop fusion, accumulator introduction and tail-recursion conversion.
+6. **More operators.** Loop fusion and accumulator introduction now exist as the `deforest` and `accumulate` strategies of `fold.pl`, for list recursion. Still to do: tupling (e.g. linear Fibonacci), trees and other data types, and arithmetic lemmas (sum with an accumulator needs associativity of `+`).
+8. **Learn the fold strategy.** The eureka step is a fixed heuristic (generalise the constants after the recursive call). S2A2's learner should learn when to define, which lemma to apply and where to fold from derivations, as it learns the other operators' conditions.
+9. **Lemma discovery.** The database holds lemmas someone wrote down. Proposing candidate lemmas (from the goals left over when a fold fails) and proving them automatically would let the database grow by itself.
 7. **Richer types.** proof/types proves inclusion of single slots. Tuple types (two slots together), negated types (`\+ t(X)`), and inclusions that depend on facts rather than holding for every input are not yet proved. Dimensions need unit declarations; inferring units from data is open.
