@@ -1,0 +1,82 @@
+== 1. Lemmas (proved by deforesting both sides on the same induction variable)
+
+  assoc: app(X,Y,W), app(W,Z,R)  <=>  app(Y,Z,V), app(X,V,R)
+  proved (induction_on(1)); both sides become
+    assoc_lhs([],A,B,C) :- app(A,B,C).
+    assoc_lhs([A|B],C,D,[A|E]) :- assoc_lhs(B,C,D,E).
+  assoc_is_proved: ok
+
+  commutes: app(X,Y,R)  <=>  app(Y,X,R): not_proved
+  bounded check: refuted(input([[a],[b]]),first([cl([a],[b],[a,b])]),second([cl([a],[b],[b,a])]))
+  false_lemma_not_proved_and_refuted: ok
+
+== 2. Deforestation: app3(X,Y,Z,R) :- app(X,Y,W), app(W,Z,R)
+
+  strategy deforest, lemmas used [], derived:
+    app3([],A,B,C) :- app(A,B,C).
+    app3([A|B],C,D,[A|E]) :- app3(B,C,D,E).
+    app([],A,A).
+    app([A|B],C,[A|D]) :- app(B,C,D).
+  derivation:
+    unfold body literal 1:
+    app3([],A,B,C) :- app(A,B,C).
+    app3([A|B],C,D,[A|E]) :- app(B,C,F), app(F,D,E).
+    fold(app3), then normalise:
+    app3([A|B],C,D,[A|E]) :- app3(B,C,D,E).
+  correctness: unfold/fold only, so the least model is preserved (Tamaki-Sato)
+  bounded check: equal_on(3375)
+  app3_deforested_and_equal: ok
+  steps for X and Y of length 40: 123 (spec) vs 82 (derived)
+  app3_fewer_steps: ok
+
+== 3. Naive reverse to accumulator reverse
+
+  specification:
+    app([],A,A).
+    app([A|B],C,[A|D]) :- app(B,C,D).
+    rev([],[]).
+    rev([A|B],C) :- rev(B,D), app(D,[A],C).
+
+  with an empty lemma database: no_derivation
+  no_derivation_without_the_lemma: ok
+  lemma database (proved lemmas only): [assoc]
+  database_holds_only_proved_lemmas: ok
+
+  strategy accumulate, lemmas used [assoc], derived:
+    rev([],[]).
+    rev([A|B],C) :- rev_acc(B,[A],C).
+    rev_acc([],A,A).
+    rev_acc([A|B],C,D) :- rev_acc(B,[A|C],D).
+  derivation:
+    eureka definition: rev_acc(A,B,C) :- rev(A,D), app(D,B,C).
+      (the goals after the recursive call, [app(D,[E],C)], generalised to [app(D,B,C)])
+    unfold body literal 1:
+    rev_acc([],A,A).
+    rev_acc([A|B],C,D) :- rev(B,E), app(E,[A],F), app(F,C,D).
+    lemma(assoc,lr), then normalise:
+    rev_acc([A|B],C,D) :- rev(B,E), app(E,[A|C],D).
+    fold(rev_acc), then normalise:
+    rev_acc([A|B],C,D) :- rev_acc(B,[A|C],D).
+    fold the specification's own clauses with the eureka definition:
+    rev([],[]).
+    rev([A|B],C) :- rev_acc(B,[A],C).
+
+  correctness for every ground first argument:
+    sound: each step keeps every clause true in the specification's least model
+    derived rev(+list,-) answers every list input: yes
+    specification rev(+,-) has at most one answer: yes
+    specification answers only list inputs: yes
+    so the derived program has exactly the specification's answers on every ground input
+  reverse_proved: ok
+    bounded check (independent): equal_on(255)
+  reverse_bounded_equal: ok
+  reverse_has_no_append: ok
+
+  resolution steps for rev(L,R):
+    length  naive  derived
+     8     45        9
+    16    153       17
+    32    561       33
+    64   2145       65
+    128   8385      129
+  reverse_linear: ok
