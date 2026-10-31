@@ -1,0 +1,6 @@
+unfold: 6 positives, 1 negatives, covering conditions [[caller_is_a_target]]
+  refined: rule(unfold,[caller_is_a_target])
+merge: 2 positives, 0 negatives, covering conditions [[]]
+  refined: rule(merge,[functional_in_first_argument])
+  counter-example input: [fin(a,b),fin(b,b),fin(b,blue),good(a),good(blue),lab(b,b),sub(a,a),sub(a,b),sub(b,blue),sub(blue,b),sub(blue,blue)]
+  counter-example input: [next(a,b),next(b,b),next(m1,m1),ok(m1),step(a,a),step(a,m1),step(m1,a),tag(b,a),tag(m1,m1)]

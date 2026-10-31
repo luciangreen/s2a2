@@ -75,7 +75,7 @@ Time limits nest correctly: `limited/2` catches only its own limit, so an enclos
 | --- | --- |
 | `prolog/s2a2.pl` | representation, operators, features, derivation search, learning, refinement, MNN |
 | `prolog/axioms.pl` | the reference optimisers, written before learning ("optimise the algorithm at the start") |
-| `prolog/instances.pl` | 12 families × (2 training + 1 to 7 test) unoptimised programs |
+| `prolog/instances.pl` | 12 families × (2 training + 1 to 5 test) unoptimised programs |
 | `prolog/experiment.pl` | learn, apply to tests, compare with the axioms, prove |
 | `prolog/speedup.pl` | search nodes with and without the MNN ordering |
 | `prolog/prover.pl` | the prover (shared with renn_pipeline) |
