@@ -105,4 +105,23 @@ FAMILIES=pid,plop swipl -q -g "consult(experiment),main,halt" -t halt
 swipl -q -g "consult(speedup),main,halt" -t halt
 ```
 
+## October 2026 Research
+
+* [algebraplop](https://github.com/luciangreen/algebraplop)
+[ann2pl](https://github.com/luciangreen/ann2pl)
+[anns2a](https://github.com/luciangreen/anns2a)
+[detlog](https://github.com/luciangreen/detlog)
+[loop2](https://github.com/luciangreen/loop2)
+[mnns](https://github.com/luciangreen/mnns)
+[Philosophy](https://github.com/luciangreen/Philosophy)
+[piglog2](https://github.com/luciangreen/piglog2)
+[pl2ann](https://github.com/luciangreen/pl2ann)
+[plop](https://github.com/luciangreen/plop)
+[Prolog_Inductive_Debugger](https://github.com/luciangreen/Prolog_Inductive_Debugger)
+[renn-inverse](https://github.com/luciangreen/renn-inverse)
+[renn](https://github.com/luciangreen/renn)
+[s2a2](https://github.com/luciangreen/s2a2)
+[Starlog](https://github.com/luciangreen/Starlog)
+
+
 Requires SWI-Prolog 9 or later.
