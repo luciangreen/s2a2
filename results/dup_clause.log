@@ -1,9 +1,14 @@
+Warning: /home/claude/v2/s2a2/prolog/prover.pl:324:
+Warning:    Clauses of prover:builtins_hold/2 are not together in the source-file
+Warning:    Earlier definition at /home/claude/v2/s2a2/prolog/prover.pl:317
+Warning:    Current predicate: prover:arith_error/1
+Warning:    Use :- discontiguous prover:builtins_hold/2. to suppress this message
 
 == dup_clause
 1. del_clause when [duplicate_of_another_clause]
 learned algorithm equals the axioms: true
-  grandparent_last: exact=true changed=true proof=proved(syntactic([dup_clause((grandparent(_14226,_14228):-[parent(_14226,_14240),parent(_14240,_14228)]))]))
-  sibling_last: exact=true changed=true proof=proved(syntactic([dup_clause((sibling(_18428,_18430):-[parent(_18440,_18428),parent(_18440,_18430),_18428\=_18430]))]))
-  compound_last: exact=true changed=true proof=proved(syntactic([dup_clause((r(_18440,_18452):-[a(_18440,_18452)]))]))
-  path3_last: exact=true changed=true proof=proved(syntactic([dup_clause((path(_438,_440):-[link(_438,_440)]))]))
-  path3_first: exact=true changed=true proof=proved(syntactic([dup_clause((path(_618,_620):-[link(_618,_620)]))]))
+  grandparent_last: exact=true changed=true proof=proved(syntactic([dup_clause((grandparent(_1844,_1846):-[parent(_1844,_1858),parent(_1858,_1846)]))]))
+  sibling_last: exact=true changed=true proof=proved(syntactic([dup_clause((sibling(_6046,_6048):-[parent(_6058,_6046),parent(_6058,_6048),_6046\=_6048]))]))
+  compound_last: exact=true changed=true proof=proved(syntactic([dup_clause((r(_6058,_6070):-[a(_6058,_6070)]))]))
+  path3_last: exact=true changed=true proof=proved(syntactic([dup_clause((path(_9792,_9794):-[link(_9792,_9794)]))]))
+  path3_first: exact=true changed=true proof=proved(syntactic([dup_clause((path(_9916,_9918):-[link(_9916,_9918)]))]))

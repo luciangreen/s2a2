@@ -63,7 +63,9 @@ S2A2 works on Prolog **terms**:
 - "Conditions not forced" means no training step had a negative, so no condition was needed to separate them. The operator only fires where it is sound, so the output still equals the axioms' output.
 - AlgebraPLOp's closed form is proved with the index facts held fixed. With a gap in the index (for example, n(2) missing) the recurrence stops but the formula does not, and the prover reports that counter-example.
 
-MNN speed-up (search nodes, leave-one-family-out): see `results/speedup_part1.txt`.
+MNN speed-up (search nodes to find each pair's derivation, trained leave-one-family-out, `results/speedup.txt`): **4,802,587 nodes in fixed order, 2,453,579 in MNN order (2.0x fewer), with the same answers.** The largest gains are Detlog (9.2x), Piglog2 (4.9x), loop2 and AlgebraPLOp (3.2x) and Starlog (2.8x). On the three smallest searches (under 30 nodes) it is slightly slower.
+
+Time limits nest correctly: `limited/2` catches only its own limit, so an enclosing limit is never swallowed. Without this, AlgebraPLOp's search ran past its limit for over 40 minutes. With it, the search takes 315 nodes.
 
 `calc/calc_check.py` checks the worked calculations quoted in the report (15/15). `calc/flies.lp` is the hand-written clingo inversion example.
 

@@ -14,7 +14,7 @@ pairs_of(F, Pairs) :-
 count_family(Pairs, Total, Solved) :-
     foldl([pair(B, A, T), N0-S0, N-S]>>(
               reset_nodes,
-              ( catch(call_with_time_limit(120, derive(B, A, T, 8, _)), _, fail) -> S = S0 + 1 ; S = S0 ),
+              ( s2a2:limited(120, derive(B, A, T, 8, _)) -> S = S0 + 1 ; S = S0 ),
               nodes(K), N is N0 + K),
           Pairs, 0-0, Total-S1), Solved is S1.
 
@@ -23,7 +23,7 @@ main :-
     findall(F-Pairs, ( member(F, Fs), pairs_of(F, Pairs) ), FP),
     % derivations of every family, for training
     findall(F-Ds-Pairs, ( member(F-Pairs, FP), mnn(false),
-                          findall(D, ( member(P, Pairs), catch(call_with_time_limit(120, pair_derivation(P, D)), _, fail) ), Ds) ), All),
+                          findall(D, ( member(P, Pairs), s2a2:limited(120, pair_derivation(P, D)) ), Ds) ), All),
     format("~w~t~22|~w~t~36|~w~t~50|~w~n", [family, 'nodes (fixed order)', 'nodes (MNN order)', 'solved fixed/MNN']),
     ( getenv('MEASURE', MS) -> split_string(MS, ",", "", MSs), maplist([X, A]>>atom_string(A, X), MSs, Measure) ; Measure = Fs ),
     forall(( member(F-Pairs, FP), memberchk(F, Measure) ),

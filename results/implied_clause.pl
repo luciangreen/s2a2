@@ -1,1 +1,1 @@
-result(implied_clause,path3_last,true,proved(all_subsets_of_the_facts(16)),true,true,prog([link(a,b),link(b,c),link(c,a),link(c,d)],[node(_11760)-[link(_11760,_11766)],path(_11782,_11784)-[link(_11782,_11784)],path(_11806,_11808)-[link(_11806,_11820),path(_11820,_11808)]])).
+result(implied_clause,path3_last,true,proved(all_subsets_of_the_facts(16)),true,true,prog([link(a,b),link(b,c),link(c,a),link(c,d)],[node(_6638)-[link(_6638,_6644)],path(_6660,_6662)-[link(_6660,_6662)],path(_6684,_6686)-[link(_6684,_6698),path(_6698,_6686)]])).

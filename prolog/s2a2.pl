@@ -243,7 +243,7 @@ recurrence_domain(P, K, Dom) :-
 % recursion (e.g. I > 0 deleted), and its least model is then infinite
 table_of(P, Name/2, Table) :-
     program_to_clauses(P, Cs),
-    catch(call_with_time_limit(2, prover:least_model(Cs, [], M)), _, fail),
+    limited(2, prover:least_model(Cs, [], M)),
     findall(X-Y, ( member(At, M), At =.. [Name, X, Y] ), T0), sort(T0, Table).
 affine_fit([X1-Y1, X2-Y2|Rest], A, B) :-
     X2 =\= X1, B is (Y2 - Y1) / (X2 - X1), A is Y1 - B*X1,
@@ -334,14 +334,14 @@ other_rules_imply(P, I) :-
     findall(K, ( member(H-_, Rs), key(H, K) ), Ks0), sort(Ks0, Ks),
     findall(E, ( member(Fa, F), key(Fa, E) ), Es0), sort(Es0, Es),
     Es \== [],
-    \+ \+ catch(call_with_time_limit(30, prover:equivalent(Cs1, Cs2, Ks, edb(Es, [a, b, c]), proved(_))), _, fail).
+    \+ \+ limited(30, prover:equivalent(Cs1, Cs2, Ks, edb(Es, [a, b, c]), proved(_))).
 
 % functional: in the program's own facts, the first argument determines the rest
 % (for a derived predicate, in the least model of the program on its own facts)
 functional(P, Name/N) :-
     N >= 2, P = prog(F, Rs),
     (   Rs == [] -> M = F
-    ;   program_to_clauses(P, Cs), catch(call_with_time_limit(2, prover:least_model(Cs, [], M)), _, fail)
+    ;   program_to_clauses(P, Cs), limited(2, prover:least_model(Cs, [], M))
     ),
     findall(X-Rest, ( member(Fa, M), Fa =.. [Name, X|Rest] ), XR), XR \== [],
     forall(( member(X-R1, XR), member(X-R2, XR) ), R1 == R2).
@@ -390,7 +390,7 @@ ordered_candidates(S, Targets, Ts, Cands) :-
     ).
 
 mnn_inputs(I, S, Targets, [op(Op)|Fs]) :-
-    op_name(I, Op), ( catch(cheap_features(I, S, Targets, Fs0), _, fail) -> true ; Fs0 = [] ),
+    op_name(I, Op), ( quiet(cheap_features(I, S, Targets, Fs0)) -> true ; Fs0 = [] ),
     maplist({Op}/[F, f(Op, F)]>>true, Fs0, Fs).
 cheap_features(del_clause(I), P, Targets, Fs) :- !,
     P = prog(_, Rs), nth1(I, Rs, R), R = H-B, key(H, K),
@@ -481,7 +481,7 @@ counterexample(S, S1, Targets, Facts) :-
     ( length(Xs, NX), NX > 3 -> length(Consts, 3), append(Consts, _, Xs) ; Consts = Xs ),
     program_to_clauses(S, C0), program_to_clauses(S1, C1),
     include([C]>>(C = (_ :- _)), C0, R0), include([C]>>(C = (_ :- _)), C1, R1),
-    catch(call_with_time_limit(60, prover:equivalent(R0, R1, Targets, edb(Edb, Consts), Res)), _, fail),
+    limited(60, prover:equivalent(R0, R1, Targets, edb(Edb, Consts), Res)),
     Res = refuted(input(Facts), _, _).
 
 pair_derivation(pair(B, A, T), D) :-
@@ -564,3 +564,18 @@ show_lr(lr(H, B), S) :- show_l(H, HS), maplist(show_l, B, BS), atomic_list_conca
 show_l(l(P, As), S) :- !, format(atom(S), '~p(~p)', [P, As]).
 show_l(neg(L), S) :- !, show_l(L, S0), atom_concat('\\+ ', S0, S).
 show_l(b(G), S) :- format(atom(S), '~p', [G]).
+
+% ---------------------------------------------------------------- time limits
+% limited(+Secs, :Goal): fail if Goal takes longer than Secs or raises an error. Only
+% THIS limit's own exception is caught: an enclosing time limit (for example the one
+% around a whole derivation) is passed on, so it can never be swallowed here.
+limited(T, G) :-
+    gensym(s2a2_limit_, C),
+    catch(call_with_time_limit(T, G, C), E, limit_error(E, C)).
+limit_error(time_limit_exceeded(C), C) :- !, fail.
+limit_error(E, _) :- outer_limit(E), !, throw(E).
+limit_error(_, _) :- fail.
+% quiet(:Goal): Goal, failing on an error, but never hiding a time limit
+quiet(G) :- catch(G, E, ( outer_limit(E) -> throw(E) ; fail )).
+outer_limit(time_limit_exceeded).
+outer_limit(time_limit_exceeded(_)).
