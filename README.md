@@ -49,67 +49,85 @@ The optimisation it supports: a unary guard `t(V)` is deleted when V also stands
 
 ## Spec to algorithm: fold and eureka definitions (`fold.pl`)
 
-The other operators only make a program smaller. Deriving a new algorithm from a naive specification sometimes needs the opposite first: define a new predicate (a **eureka** definition), unfold it, rewrite it with a **lemma**, then **fold** the result back into a call to the new predicate. This is the unfold/fold method of Burstall and Darlington (1977), with the correctness conditions of Tamaki and Sato (1984). The specification is a program that is obviously correct but slow; the result is a faster program proved to give exactly the same answers.
+The other operators only make a program smaller. Deriving a new algorithm from a naive specification sometimes needs the opposite first: define a new predicate (a **eureka** definition), unfold it, rewrite it with a **lemma**, then **fold** the result back into a call to the new predicate. This is the unfold/fold method of Burstall and Darlington (1977), with the correctness conditions of Tamaki and Sato (1984). The specification is a program that is obviously correct but slow. The result is a faster program, proved to give the same answers.
 
-The rules, each with the side condition that makes it sound:
+**Result: six specifications derived, each starting from an empty lemma database, each proved and measured** (`results/fold.txt` lists every step):
+
+| Specification | Strategy | Lemma found and used | Derived program | Proof | Cost of the specification → derived |
+| --- | --- | --- | --- | --- | --- |
+| `app3` (append three lists) | deforest | none | one pass | least model preserved (Tamaki–Sato) | 771 → 514 steps (lists of 256) |
+| naive reverse | accumulate | `app_assoc`, proved | `rev_acc(T,[H|A],R)` | same least model | 33,409 → 513 steps (256) |
+| tree flatten | accumulate | `app_assoc`, proved | `flat_acc` threads the list through the tree | same least model | 33,409 → 513 steps (left comb of 256) |
+| sum of a list | accumulate | `plus_assoc`, integer axiom | tail-recursive `sum_acc` | equal on integer lists | 257 → 2 pending goals (256) |
+| length | accumulate | `plus_assoc`, integer axiom | tail-recursive `len_acc` | same least model | 257 → 2 pending goals (256) |
+| Fibonacci on naturals | tuple | none | `fib_tup(N,F(N+1),F(N))` | same least model | 32,836 → 39 steps (n = 20) |
+
+### The rules
 
 | Rule | What it does | Condition checked |
 | --- | --- | --- |
 | define | adds `d(V1..Vn) :- G1, …, Gk` for a new name `d` | `d` is new |
-| unfold | replaces a clause by all its resolvents on one body literal | none (always sound) |
-| fold | replaces an instance of a definition's body by its head | the definition's local variables map to distinct variables used nowhere else in the clause; a clause from a definition must have been unfolded first |
-| lemma | replaces one side of a lemma by the other | the lemma is in the database (so it is proved), and the same local-variable condition |
-| normalise | unfolds a literal whose case argument is already `[]` or `[_|_]` and that matches at most one clause | none |
+| unfold | replaces a clause by all its resolvents on one user literal | none (always sound) |
+| fold | replaces an instance of a definition's body by its head | the definition's local variables map to distinct variables used nowhere else; a clause from a definition was unfolded first |
+| lemma | replaces one side of a lemma by the other | the lemma is in the database, and the same local-variable condition |
+| merge | unifies two calls of one predicate with identical first arguments | none for soundness (an instance of a clause); equality then rests on functionality |
+| normalise | unfolds a literal whose case argument is a constructor and that matches at most one clause; evaluates `is/2` and comparisons on ground arguments | none |
 
-Two strategies search for the steps by iterative deepening:
+### Three eureka strategies
 
-- **deforest** a conjunctive definition such as `app3(X,Y,Z,R) :- app(X,Y,W), app(W,Z,R)`: unfold on the induction variable, normalise, fold. The intermediate list `W` disappears.
-- **accumulate** a recursive clause that works after its recursive call, such as `rev([H|T],R) :- rev(T,RT), app(RT,[H],R)`: the eureka definition generalises the constants after the call (`[H]` becomes an accumulator `A`), giving `rev_acc(T,A,R) :- rev(T,RT), app(RT,A,R)`. It is unfolded, rewritten with lemmas from the database, and folded; then the original clause is folded with it.
+- **deforest**: a conjunctive definition such as `app3(X,Y,Z,R) :- app(X,Y,W), app(W,Z,R)` is unfolded on its induction variable and folded back. The intermediate list `W` disappears.
+- **accumulate**: a recursive call whose result is consumed afterwards gets a definition that generalises the consumer's other arguments into an accumulator. Inside `is/2`, the generalisation works on subterms. `rev(T,RT), app(RT,[H],R)` gives `rev_acc(T,A,R) :- rev(T,RT), app(RT,A,R)`, and `sum(T,S1), S is S1+H` gives `sum_acc(T,S,A) :- sum(T,S1), S is S1+A`. The step clause must end as a tail call: the definition's outputs go straight into the new call and are never computed afterwards. This rejects `sum_acc(T,S,A) :- sum_acc(T,E,H), S is E+A`, which is correct but no better.
+- **tuple**: two recursive calls on related arguments, `fib(s(N),F1), fib(N,F2)`, get one definition that computes both: `fib_tup(N,F1,F2)`. Unfolding on the larger argument and merging the repeated call `fib(s(M),_)` lets it fold into one recursive call, which makes it linear.
 
-### The lemma database
+### Types beyond lists
 
-A lemma is admitted only after `prove_lemma/3` proves it. Both sides become predicates over their shared variables, both are deforested on the same induction variable, and the two derived programs must be the same up to the predicate name. Unfold/fold preserves the least model, so the two sides then denote the same relation. Associativity of append, `app(X,Y,W), app(W,Z,R) ⇔ app(Y,Z,V), app(X,V,R)`, is proved this way (both sides become `l([],Y,Z,R) :- app(Y,Z,R). l([H|T],Y,Z,[H|R]) :- l(T,Y,Z,R).`). The false "lemma" `app(X,Y,R) ⇔ app(Y,X,R)` is not proved, and the bounded check refutes it with `X=[a], Y=[b]`.
+Types are declared by their constructors (`set_types/1`). The defaults are `list(E)`, `tree(E)` (`leaf | node(tree(E),E,tree(E))`) and `nat` (`0 | s(nat)`), plus `int`, `num` and `any`. Every check works from the declarations:
 
-### Result: naive reverse to accumulator reverse
+- **coverage** uses a pattern matrix, so nested patterns work: `fib(0,_)`, `fib(s(0),_)`, `fib(s(s(N)),_)` covers `nat`, but leaving out `s(0)` is caught.
+- **structural recursion**: every recursive call takes a proper subterm at one fixed argument.
+- **argument types** of calls and outputs are inferred, so `B is C+D` is known to be on integers when `C` and `D` come from `fib_tup`.
 
-```
-specification                              derived
-rev([],[]).                                rev([],[]).
-rev([H|T],R) :- rev(T,RT), app(RT,[H],R).  rev([H|T],R) :- rev_acc(T,[H],R).
-                                           rev_acc([],A,A).
-                                           rev_acc([H|T],A,R) :- rev_acc(T,[H|A],R).
-```
+### The lemma database and lemma discovery
 
-The derivation (`results/fold.txt` lists every clause):
+A lemma about user predicates is admitted only after `prove_lemma/3` proves it. Both sides are deforested on the same induction variable, and the two derived programs must be the same up to the predicate name. Associativity of append passes. Integer arithmetic facts (associativity of `+` and `*`) are axioms of the integers. They are used only where their variables are integers, and `verify/5` reports whether every `is/2` in the result is on integers.
 
-1. eureka: `rev_acc(T,A,R) :- rev(T,RT), app(RT,A,R)`;
-2. unfold `rev`: `rev_acc([],A,A)` (after normalising `app([],A,R)`) and `rev_acc([H|T],A,R) :- rev(T,RT), app(RT,[H],X), app(X,A,R)`;
-3. lemma `assoc`, then normalise `app([H],A,V)`: `rev_acc([H|T],A,R) :- rev(T,RT), app(RT,[H|A],R)`;
-4. fold with the eureka definition: `rev_acc([H|T],A,R) :- rev_acc(T,[H|A],R)`;
-5. fold the specification's own clause: `rev([H|T],R) :- rev_acc(T,[H],R)`.
+When a strategy gets stuck, `discover_lemmas/4` looks at the stuck clauses and conjectures lemmas:
 
-**Proof that it is correct for every ground first argument.** Every step keeps every clause true in the least model of the specification plus the definition, so every answer of the derived program is an answer of the specification (soundness). The checker then shows three things: the derived `rev(+list,-)` answers every list input (case analysis on `[]` and `[_|_]`, structural recursion on the tail, mode-correct calls); the specification has at most one answer for each input (non-overlapping heads, functional calls); and the specification answers only list inputs. So both have exactly the same answer on every ground input. The bounded check agrees on all 255 lists of length up to 7 over `{a,b}`.
+- associativity, when a predicate chains with itself through a private variable (`app(RT,[H],X), app(X,A,R)`);
+- commutativity of the same predicate;
+- the integer axiom for an operator that chains in `is/2`.
 
-**Speed.** Resolution steps for `rev(L,R)`:
+It proves or refutes each conjecture and retries with the good ones. For reverse it proves `app_assoc` and refutes `app_comm` with `[a]`, `[b]`. **No lemma is written by hand in any of the six derivations.**
 
-| Length of L | naive | derived |
-| --- | --- | --- |
-| 8 | 45 | 9 |
-| 16 | 153 | 17 |
-| 32 | 561 | 33 |
-| 64 | 2,145 | 65 |
-| 128 | 8,385 | 129 |
+### Why each result is correct
 
-Quadratic, (n+1)(n+2)/2, becomes linear, n+1.
+- **deforest without lemmas or merges.** Only unfold and fold are used, so the least model is preserved exactly (Tamaki–Sato).
+- **Otherwise.** Every step keeps every clause true in the specification's least model, so every answer of the result is an answer of the specification (soundness). `verify/5` then checks three things:
+  - `total`: the result answers every input of the declared types;
+  - `functional`: the specification has at most one answer per input;
+  - `slot_type`: the specification answers only inputs of those types.
 
-**The database is what makes it possible.** With an empty lemma database the search finds no derivation: the step clause can only be folded into `rev_acc(T,[H],X), app(X,A,R)`, which is still quadratic. With the proved associativity lemma it finds the five steps above. `app3` needs no lemma: deforestation alone turns two passes into one (123 steps to 82 for two lists of 40).
+  The first two give equal answers on every typed input. With the third as well, the **least models are equal**, so the programs agree in **every mode**, not just the one checked. They give the same correct answers, though which queries terminate can differ.
+- **Sum.** Summing is equal on integer lists only. The specification also sums lists of floats, where associativity does not hold exactly, and the third check rightly fails.
+- **Body order.** `verify/5` returns the result with each body ordered so that inputs are bound. The order of a conjunction does not change the least model.
+- **Bounded check.** `bounded_equal/7` independently compares the programs on every input up to a size: 255 lists, 723 trees, 341 integer lists, 17 naturals. A second mode, with both arguments given, agrees on every pair tried.
 
-### Limits
+### Learning which strategy to try
 
-- Lists only: totality is checked for case analysis on `[]` and `[_|_]`. Trees and other types need their constructors declared.
-- Pure programs without builtins, so no arithmetic lemmas yet (summing with an accumulator needs associativity of `+`).
-- The eureka step is one fixed heuristic, and the lemmas are written by hand; S2A2 does not yet learn either. Tupling (linear Fibonacci) is not covered.
-- Equality is proved in the mode the checks use (`rev(+list,-)`), on ground inputs.
+`features/3` describes a specification, for example "result used after the recursive call" or "calls on related arguments". `learn_strategies/2` learns, by sequential covering, when each strategy succeeds. From all six:
+
+- deforest when `conjunctive`;
+- accumulate when `result_used_after_call ∧ ¬calls_on_related_arguments`;
+- tuple when `calls_on_related_arguments`.
+
+Left out one at a time, the learned order needs 9 attempts in total against 12 for the fixed order. It loses one attempt on `app3`, because no other example is conjunctive, and cannot place `fib` first, because no other example uses tupling.
+
+### What is still open
+
+- **More strategies and lemmas.** Lemma discovery conjectures only associativity and commutativity. Strategies that need other lemmas, for example distributivity, or a new data type such as an accumulator pair, need more conjecture schemes.
+- **Termination in every mode.** Equal least models give the same answers in every mode. Whether a query terminates is a separate question, and it is not checked.
+- **Arithmetic beyond integers.** The integer axioms are not valid for floats, so results that use them are stated for integer inputs.
+- **More training examples.** Six examples are few for learning; held-out cases with no similar training example fall back to the fixed order.
 
 ## MNN speed-up
 
@@ -153,9 +171,9 @@ Time limits nest correctly: `limited/2` catches only its own limit, so an enclos
 | `prolog/s2a2.pl` | representation, operators, features, derivation search, learning, refinement, MNN |
 | `prolog/types.pl` | proof/types: type inclusions, same and related types, templates, dimensions, implied guards |
 | `prolog/types_tests.pl` | 17 tests for proof/types |
-| `prolog/fold.pl` | spec to algorithm: unfold, fold, eureka definitions, lemmas, totality and functionality checks, bounded check |
-| `prolog/fold_tests.pl` | 16 tests of the side conditions that keep fold sound |
-| `prolog/fold_examples.pl` | lemma proofs, app3 deforestation, naive reverse to accumulator reverse (writes `results/fold.txt`) |
+| `prolog/fold.pl` | spec to algorithm: types, unfold/fold/lemma/merge, three eureka strategies, lemma discovery, totality, functionality and answer types, bounded check, strategy learning |
+| `prolog/fold_tests.pl` | 30 tests of the side conditions that keep fold sound |
+| `prolog/fold_examples.pl` | the lemma database, six derivations, a second mode, strategy learning (writes `results/fold.txt`) |
 | `prolog/axioms.pl` | the reference optimisers, written before learning ("optimise the algorithm at the start") |
 | `prolog/instances.pl` | 13 families × (2 training + 1 to 5 test) unoptimised programs |
 | `prolog/experiment.pl` | learn, apply to tests, compare with the axioms, prove |
