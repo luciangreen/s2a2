@@ -1,0 +1,3 @@
+result(detlog,less_than,true,proved(all_subsets_of_the_facts(8)),false,true,prog([num(-2),num(0),num(3)],[neg(_9080)-[num(_9080),_9080<0],sign(_9112,n)-[neg(_9112)],sign(_9966,nn)-[num(_9966),_9966>=0]])).
+result(detlog,at_most,true,proved(all_subsets_of_the_facts(8)),false,true,prog([score(10),score(50),score(90)],[low(_14212)-[score(_14212),_14212=<50],grade(_14244,fail)-[low(_14244)],grade(_15098,pass)-[score(_15098),_15098>50]])).
+result(detlog,extra_goal,true,proved(all_subsets_of_the_facts(16)),false,true,prog([even(2),num(1),num(2),num(5)],[small(_14222)-[num(_14222),_14222<3],kind(_14254,small)-[small(_14254)],kind(_15166,large)-[num(_15166),_15166>=3,_15166>0]])).

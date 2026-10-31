@@ -1,0 +1,8 @@
+speed(dup_clause,9,11,7,7,7).
+speed(dup_literal,17,26,6,6,6).
+speed(subsumed_clause,17,8,6,6,6).
+speed(implied_clause,10,13,3,3,3).
+speed(dup_then_subsumed,117,93,7,7,7).
+speed(pid,107,49,5,5,5).
+speed(loop2,41,13,5,5,5).
+speed(starlog,230873,82315,5,5,5).

@@ -1,0 +1,7 @@
+
+== loop2
+1. unfold when []
+learned algorithm equals the axioms: false
+  arity2: exact=true changed=true proof=proved(all_subsets_of_the_facts(4))
+  extra_goal: exact=true changed=true proof=proved(all_subsets_of_the_facts(8))
+  two_callers: exact=true changed=true proof=proved(all_subsets_of_the_facts(4))

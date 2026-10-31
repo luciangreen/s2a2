@@ -1,0 +1,8 @@
+
+== subsumed_clause
+1. del_clause when [subsumed_by_other_clause]
+learned algorithm equals the axioms: true
+  grandparent_last: exact=true changed=true proof=proved(syntactic([subsumed((grandparent(_14448,_14450):-[parent(_14448,_14462),parent(_14462,_14450),parent(_14450,_14448)]),by((grandparent(_14380,_14382):-[parent(_14380,_14394),parent(_14394,_14382)])))]))
+  sibling_last: exact=true changed=true proof=proved(syntactic([subsumed((sibling(_18780,_18782):-[parent(_18792,_18780),parent(_18792,_18782),_18780\=_18782,parent(_18782,_18780)]),by((sibling(_18700,_18702):-[parent(_18712,_18700),parent(_18712,_18702),_18700\=_18702])))]))
+  compound_last: exact=true changed=true proof=proved(syntactic([subsumed((r(_18826,_18828):-[a(_18826,_18828),a(_18828,_18826)]),by((r(_18712,_18724):-[a(_18712,_18724)])))]))
+  path3_last: exact=true changed=true proof=proved(syntactic([subsumed((path(_492,_494):-[link(_492,_494),link(_494,_492)]),by((path(_438,_440):-[link(_438,_440)])))]))

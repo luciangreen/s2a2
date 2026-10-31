@@ -1,0 +1,9 @@
+
+== dup_clause
+1. del_clause when [duplicate_of_another_clause]
+learned algorithm equals the axioms: true
+  grandparent_last: exact=true changed=true proof=proved(syntactic([dup_clause((grandparent(_14226,_14228):-[parent(_14226,_14240),parent(_14240,_14228)]))]))
+  sibling_last: exact=true changed=true proof=proved(syntactic([dup_clause((sibling(_18428,_18430):-[parent(_18440,_18428),parent(_18440,_18430),_18428\=_18430]))]))
+  compound_last: exact=true changed=true proof=proved(syntactic([dup_clause((r(_18440,_18452):-[a(_18440,_18452)]))]))
+  path3_last: exact=true changed=true proof=proved(syntactic([dup_clause((path(_438,_440):-[link(_438,_440)]))]))
+  path3_first: exact=true changed=true proof=proved(syntactic([dup_clause((path(_618,_620):-[link(_618,_620)]))]))

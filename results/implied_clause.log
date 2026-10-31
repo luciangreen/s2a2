@@ -1,0 +1,5 @@
+
+== implied_clause
+1. del_clause when [implied_by_the_other_clauses]
+learned algorithm equals the axioms: true
+  path3_last: exact=true changed=true proof=proved(all_subsets_of_the_facts(16))

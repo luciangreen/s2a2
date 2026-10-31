@@ -1,0 +1,8 @@
+
+== pid
+1. del_clause when [calls_itself_unchanged]
+2. replace A([B,C]) :- A([B,D]), E([D,C]) by A([B,C]) :- E([B,D]), A([D,C])
+learned algorithm equals the axioms: true
+  no_loop_clause: exact=true changed=true proof=proved(all_subsets_of_the_facts(4))
+  extra_rule: exact=true changed=true proof=proved(all_subsets_of_the_facts(8))
+  loop_clause_first: exact=true changed=true proof=proved(all_subsets_of_the_facts(8))

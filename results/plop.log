@@ -1,0 +1,8 @@
+
+== plop
+1. unfold when [caller_is_a_target]
+2. merge when [functional_in_first_argument]
+learned algorithm equals the axioms: true
+  extra_goal: exact=true changed=true proof=proved(all_subsets_of_the_facts(256))
+  three_rows: exact=true changed=true proof=proved(all_subsets_of_the_facts(256))
+  renamed: exact=true changed=true proof=proved(all_subsets_of_the_facts(128))
