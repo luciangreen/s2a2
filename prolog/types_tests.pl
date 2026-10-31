@@ -50,7 +50,7 @@ main :-
     t(every_inferred_inclusion_holds_semantically_family, all_inclusions_hold(F, [parent/2, age/2], [a,b])),
     memo_stats(H0, _), infer_types(F2, _), memo_stats(H1, _),
     t(memo_reuses_templates_for_the_same_clause_shape, H1 > H0),
-    ( failed(_) -> halt(1) ; format("all types tests passed~n") ).
+    ( failed(_) -> halt(1) ; format("all types tests passed~n"), halt(0) ).
 
 % every inclusion between slots of rule-defined and input predicates is confirmed on all inputs
 all_inclusions_hold(P, Edb, Consts) :-
