@@ -164,6 +164,16 @@ Time limits nest correctly: `limited/2` catches only its own limit, so an enclos
 
 `calc/calc_check.pl` checks the worked calculations quoted in the report (15/15; run `swipl calc/calc_check.pl`, which exits 1 if any check fails). `calc/flies.lp` is the hand-written clingo inversion example.
 
+## Input/output pairs
+
+[`io_pairs/io_pairs.md`](io_pairs/io_pairs.md) holds 200 input/output pairs, each produced by running the code (`io_pairs/generate.pl`). They cover: all 13 families learned from their training programs; the learned algorithms on all 44 test programs and 26 training programs; 14 specifications through spec to algorithm, and the first six with each strategy alone; lemmas and their discovery; the totality, functionality and answer-type checks; bounded checks; and proof/types.
+
+Three of the new specifications show open problems:
+
+- Tree size has no derivation, because its two recursive results are added together.
+- Doubling every element has no derivation, which is expected: it is already linear.
+- "Append four lists" derives, but the totality check fails on the result.
+
 ## Files
 
 | File | Contents |

@@ -34,6 +34,7 @@ Learn an optimisation algorithm (a list of rewrite rules with conditions) from t
 | R24 | Lemma discovery: conjecture lemmas from stuck clauses, prove or refute them, retry | done (`discover_lemmas/4`; every example starts from an empty database) |
 | R25 | Learn which strategy to try first | done (`learn_strategies/2`, leave-one-out: 9 attempts against 12) |
 | R26 | Equality in every mode, not only the one checked | done where the specification answers only typed inputs (`slot_type/4`: equal least models) |
+| R27 | 200 input/output pairs produced by running the code | done (`io_pairs/`) |
 
 ## Results (`results/`)
 
