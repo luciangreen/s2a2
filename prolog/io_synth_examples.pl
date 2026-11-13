@@ -31,6 +31,7 @@ examples :- signals_section, hierarchy, reductions, genetic, active, to_algorith
 problem(dropmin_each, [ [[1,3,5],[5,3,2]]-[[3,5],[5,3]], [[7,9],[4]]-[[9],[]] ], [], nested).
 problem(double, [ [1,2,3]-[2,4,6], [5]-[10], []-[] ], [], flat).
 problem(inc_all, [ [[1,2],[3]]-[[2,3],[4]], [[5]]-[[6]], []-[] ], [], nested).
+problem(dropmax, [ [3,1,2]-[1,2], [7,9,8]-[7,8], [5,6,4]-[5,4] ], [], flat).
 problem(submin, [ [3,5,4]-[0,2,1], [7,9]-[0,2], [2]-[0] ], [], flat).
 problem(minmax, [ [3,1,2]-(1-3), [5,9]-(5-9), [4]-(4-4) ], [], flat).
 problem(evens, [ [1,2,3,4]-[2,4], [5,6]-[6], [7]-[], [-2,1]-[-2] ], [], flat).
@@ -138,8 +139,9 @@ active :-
 to_algorithm :-
     format("~n== 6. From input/output to an algorithm~n~n"),
     format("  With the library aggregate left out, the program found is a plain recursive~n"),
-    format("  specification. It is proved equal to its reference; fold.pl then derives an~n"),
-    format("  accumulator program and proves it equal to the specification.~n"),
+    format("  specification. It is proved equal to its reference; fold.pl then derives a faster~n"),
+    format("  program (an accumulator, or for flatten a fused predicate with no append) and~n"),
+    format("  proves it equal to the specification.~n"),
     forall(algo(Name, Exs, Ex, Mode, Size), algorithm(Name, Exs, Ex, Mode, Size)).
 
 algo(sum, [ [1,2,3]-6, [4]-4, []-0, [2,5]-7 ], [sum], [in(list(int)), out], 4).
@@ -147,6 +149,10 @@ algo(len, [ [1,2,3]-3, [4]-1, []-0, [5,6]-2 ], [len], [in(list(any)), out], 7).
 algo(rev, [ [1,2,3]-[3,2,1], [4]-[4], []-[], [2,5]-[5,2] ], [rev], [in(list(any)), out], 7).
 algo(sumsq, [ [1,2,3]-14, [4]-16, []-0, [2,5]-29 ], [], [in(list(int)), out], 4).
 algo(maxf, [ [1,3,2]-3, [4]-4, [2,5]-5, [0,1]-1, []-0 ], [maxl, msort, sort, last], [in(list(int)), out], 4).
+algo(flat2, [ [[1,2],[3]]-[1,2,3], [[4]]-[4], []-[], [[],[5]]-[5] ], [], [in(list(list(any))), out], 3).
+
+cost_input(flat2, L) :- !, length(L, 64), maplist(=([1,2,3]), L).
+cost_input(_, L) :- numlist(1, 64, L).
 
 algorithm(Name, Exs, Ex, Mode, Size) :-
     format("~n--- ~w~n", [Name]),
@@ -165,7 +171,11 @@ algorithm(Name, Exs, Ex, Mode, Size) :-
             ;   true ),
             bounded_equal(S, Name/2, PF, Name/2, Mode, Size, B),
             format("  bounded check: ~w~n", [B]),
-            check(Name, ( Proof = proved(_), T == yes, F == yes, B = equal_on(_) ))
+            cost_input(Name, CI), G1 =.. [Name, CI, _], copy_term(G1, G2),
+            cost(S, G1, Sa, Ma), cost(PF, G2, Sb, Mb),
+            format("  cost of the first answer on a 64-element input (resolution steps / most pending goals):~n"),
+            format("    specification ~w / ~w, derived ~w / ~w~n", [Sa, Ma, Sb, Mb]),
+            check(Name, ( Proof = proved(_), T == yes, F == yes, B = equal_on(_), ( Sb < Sa ; Mb < Ma ) ))
         ;   format("  no derivation~n"), check(Name, fail) )
     ;   format("  no specification~n"), check(Name, fail) ).
 

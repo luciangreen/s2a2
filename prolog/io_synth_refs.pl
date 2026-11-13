@@ -62,9 +62,8 @@ filter(N, X, Test, [H0, (H1 :- ( Test -> R = [X|R1] ; R = R1 ), Rec)]) :-
 % ---------------------------------------------------------------- filters on the whole list
 r(dropmin, flat, [ref_dropmin([], []), (ref_dropmin([X|Xs], R) :- min_list([X|Xs], M), del_eq([X|Xs], M, R)),
                   del_eq([], _, []), (del_eq([X|Xs], M, R) :- ( X == M -> R = R1 ; R = [X|R1] ), del_eq(Xs, M, R1))]).
-% every element is at most the maximum, so dropping the maximum keeps the elements below it
-r(dropmax, flat, [ref_dropmax([], []), (ref_dropmax([X|Xs], R) :- max_list([X|Xs], M), below([X|Xs], M, R)),
-                  below([], _, []), (below([X|Xs], M, R) :- ( X < M -> R = [X|R1] ; R = R1 ), below(Xs, M, R1))]).
+r(dropmax, flat, [ref_dropmax([], []), (ref_dropmax([X|Xs], R) :- max_list([X|Xs], M), del_eq([X|Xs], M, R)),
+                  del_eq([], _, []), (del_eq([X|Xs], M, R) :- ( X == M -> R = R1 ; R = [X|R1] ), del_eq(Xs, M, R1))]).
 r(keep_max, flat, [ref_keep_max([], []), (ref_keep_max([X|Xs], R) :- max_list([X|Xs], M), keep_eq([X|Xs], M, R)),
                    keep_eq([], _, []), (keep_eq([X|Xs], M, R) :- ( X == M -> R = [X|R1] ; R = R1 ), keep_eq(Xs, M, R1))]).
 r(keep_min, flat, [ref_keep_min([], []), (ref_keep_min([X|Xs], R) :- min_list([X|Xs], M), keep_eq([X|Xs], M, R)),
@@ -79,8 +78,8 @@ r(dropmin_each, nested, [ref_dropmin_each([], []), (ref_dropmin_each([L|Ls], [R|
                          drop_min([], []), (drop_min([X|Xs], R) :- min_list([X|Xs], M), del_eq([X|Xs], M, R)),
                          del_eq([], _, []), (del_eq([X|Xs], M, R) :- ( X == M -> R = R1 ; R = [X|R1] ), del_eq(Xs, M, R1))]).
 r(dropmax_each, nested, [ref_dropmax_each([], []), (ref_dropmax_each([L|Ls], [R|Rs]) :- drop_max(L, R), ref_dropmax_each(Ls, Rs)),
-                         drop_max([], []), (drop_max([X|Xs], R) :- max_list([X|Xs], M), below([X|Xs], M, R)),
-                         below([], _, []), (below([X|Xs], M, R) :- ( X < M -> R = [X|R1] ; R = R1 ), below(Xs, M, R1))]).
+                         drop_max([], []), (drop_max([X|Xs], R) :- max_list([X|Xs], M), del_eq([X|Xs], M, R)),
+                         del_eq([], _, []), (del_eq([X|Xs], M, R) :- ( X == M -> R = R1 ; R = [X|R1] ), del_eq(Xs, M, R1))]).
 
 % ---------------------------------------------------------------- maps on the whole list
 r(submin, flat, [ref_submin([], []), (ref_submin([X|Xs], R) :- min_list([X|Xs], M), minus([X|Xs], M, R)),

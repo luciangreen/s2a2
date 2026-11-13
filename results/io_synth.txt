@@ -5,6 +5,7 @@
   dropmin_each: [in_type(list(list(int))),out_type(list(list(int))),length_preserved,nested_input,per_sublist,depth_preserved]
   double: [in_type(list(int)),out_type(list(int)),length_preserved,empty_case([]),depth_preserved]
   inc_all: [in_type(list(list(int))),out_type(list(list(int))),length_preserved,nested_input,per_sublist,empty_case([]),depth_preserved]
+  dropmax: [in_type(list(int)),out_type(list(int)),subsequence,drops_elements]
   submin: [in_type(list(int)),out_type(list(int)),length_preserved,depth_preserved]
   minmax: [in_type(list(int)),out_type(any),output_template(A-B)]
   evens: [in_type(list(int)),out_type(list(int)),subsequence,drops_elements]
@@ -133,6 +134,53 @@
       inc_all/2 = ref_inc_all/2 by induction on argument 1
   both run on every input of the pool: equal_on(7311)
   inc_all: ok
+
+--- dropmax
+  examples:
+    [3,1,2] -> [1,2]
+    [7,9,8] -> [7,8]
+    [5,6,4] -> [5,4]
+  hypothesis tree:
+    dropmax: filter (context): keep x when x < max_list(l)
+  program:
+    dropmax([], []).
+    dropmax([A|B], C) :-
+        max_list([A|B], D),
+        dropmax_sel([A|B], D, C).
+    dropmax_sel([], _, []).
+    dropmax_sel([A|B], C, D) :-
+        (   dropmax_test(A, C)
+        ->  D=[A|E]
+        ;   D=E
+        ),
+        dropmax_sel(B, C, E).
+    dropmax_test(A, B) :-
+        A<B.
+  candidates built: 4407; dropped as observationally equivalent: 3840; arguments refused by type: 1378
+  reference program:
+    ref_dropmax([], []).
+    ref_dropmax([A|B], C) :-
+        max_list([A|B], D),
+        del_eq([A|B], D, C).
+    del_eq([], _, []).
+    del_eq([A|B], C, D) :-
+        (   A==C
+        ->  D=E
+        ;   D=[A|E]
+        ),
+        del_eq(B, C, E).
+  proof that dropmax/2 = ref_dropmax/2:
+    proved for every input of the declared types:
+      unfold dropmax_test/2 (one clause, not recursive)
+      at the call, every element of argument 1 is at most argument 2 (library fact about max_list/2), and the tail keeps it
+      tests compared on integers that satisfy the invariant
+      tests compared in normal form
+      == and \== on integers read as =:= and =\=
+      if-then-else with the test negated and the branches swapped
+      dropmax_sel/3 = del_eq/3 by induction on argument 1, for inputs where every element of argument 1 is at most argument 2
+      dropmax/2 = ref_dropmax/2 clause by clause
+  both run on every input of the pool: equal_on(1555)
+  dropmax: ok
 
 --- submin
   examples:
@@ -355,8 +403,9 @@
 == 6. From input/output to an algorithm
 
   With the library aggregate left out, the program found is a plain recursive
-  specification. It is proved equal to its reference; fold.pl then derives an
-  accumulator program and proves it equal to the specification.
+  specification. It is proved equal to its reference; fold.pl then derives a faster
+  program (an accumulator, or for flatten a fused predicate with no append) and
+  proves it equal to the specification.
 
 --- sum
   specification found from [[1,2,3]-6,[4]-4,[]-0,[2,5]-7] examples:
@@ -374,6 +423,8 @@
   (the specification also accepts floats, where the integer axiom does not hold
   exactly, so equality is stated for integer lists, as in results/fold.txt)
   bounded check: equal_on(341)
+  cost of the first answer on a 64-element input (resolution steps / most pending goals):
+    specification 129 / 65, derived 129 / 2
   sum: ok
 
 --- len
@@ -390,6 +441,8 @@
     len_acc([A|B],C,D) :- E is 1+D, len_acc(B,C,E).
   total: yes; specification functional: yes; typed answers: yes
   bounded check: equal_on(255)
+  cost of the first answer on a 64-element input (resolution steps / most pending goals):
+    specification 129 / 65, derived 129 / 2
   len: ok
 
 --- rev
@@ -408,6 +461,8 @@
     rev_acc([A|B],C,D) :- rev_acc(B,[A|C],D).
   total: yes; specification functional: yes; typed answers: yes
   bounded check: equal_on(255)
+  cost of the first answer on a 64-element input (resolution steps / most pending goals):
+    specification 2145 / 65, derived 65 / 1
   rev: ok
 
 --- sumsq
@@ -427,6 +482,8 @@
   (the specification also accepts floats, where the integer axiom does not hold
   exactly, so equality is stated for integer lists, as in results/fold.txt)
   bounded check: equal_on(341)
+  cost of the first answer on a 64-element input (resolution steps / most pending goals):
+    specification 129 / 65, derived 130 / 2
   sumsq: ok
 
 --- maxf
@@ -445,7 +502,29 @@
   (the specification also accepts floats, where the integer axiom does not hold
   exactly, so equality is stated for integer lists, as in results/fold.txt)
   bounded check: equal_on(341)
+  cost of the first answer on a 64-element input (resolution steps / most pending goals):
+    specification 129 / 65, derived 129 / 2
   maxf: ok
+
+--- flat2
+  specification found from [[[1,2],[3]]-[1,2,3],[[4]]-[4],[]-[],[[],[5]]-[5]] examples:
+    flat2([],[]).
+    flat2([A|B],C) :- flat2(B,D), app(A,D,C).
+    app([],A,A).
+    app([A|B],C,[A|D]) :- app(B,C,D).
+  proof that it equals the reference ref_flat2/2:
+    proved for every input of the declared types:
+      flat2/2 = ref_flat2/2 by induction on argument 1
+  derived by fuse (lemmas []):
+    flat2([],[]).
+    flat2([A|B],C) :- flat2_fuse(A,B,C).
+    flat2_fuse([],A,B) :- flat2(A,B).
+    flat2_fuse([A|B],C,[A|D]) :- flat2_fuse(B,C,D).
+  total: yes; specification functional: yes; typed answers: yes
+  bounded check: equal_on(3616)
+  cost of the first answer on a 64-element input (resolution steps / most pending goals):
+    specification 321 / 65, derived 321 / 1
+  flat2: ok
 
 == 7. The prover refuses programs that are not equal
 

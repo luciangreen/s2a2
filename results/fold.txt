@@ -283,13 +283,14 @@
     deforest when any_of([[conjunctive]])
     accumulate when any_of([[not(calls_on_related_arguments),result_used_after_call]])
     tuple when any_of([[calls_on_related_arguments]])
+    fuse when never
 
   attempts until a derivation (held-out example; learned order vs the default order):
-    app3: learned [accumulate,deforest,tuple] -> 2, default -> 1
-    rev: learned [accumulate,deforest,tuple] -> 1, default -> 2
-    flat: learned [accumulate,deforest,tuple] -> 1, default -> 2
-    sum: learned [accumulate,deforest,tuple] -> 1, default -> 2
-    len: learned [accumulate,deforest,tuple] -> 1, default -> 2
-    fib: learned [accumulate,deforest,tuple] -> 3, default -> 3
+    app3: learned [accumulate,deforest,tuple,fuse] -> 2, default -> 1
+    rev: learned [accumulate,deforest,tuple,fuse] -> 1, default -> 2
+    flat: learned [accumulate,deforest,tuple,fuse] -> 1, default -> 2
+    sum: learned [accumulate,deforest,tuple,fuse] -> 1, default -> 2
+    len: learned [accumulate,deforest,tuple,fuse] -> 1, default -> 2
+    fib: learned [accumulate,deforest,tuple,fuse] -> 3, default -> 3
   total attempts: learned 9, default 12
   learned_order_no_worse: ok
