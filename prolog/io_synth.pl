@@ -53,7 +53,7 @@
       int_lists/4, nested_int_lists/5, show_program/1, show_tree/1
 */
 :- module(io_synth, [ synth/4, synth/5, synth_nd/5, signals/2, ga_synth/5,
-                      active_synth/6, agrees/5, run_program/4, run_all/4,
+                      active_synth/6, agrees/5, agrees_prog/6, run_program/4, run_all/4,
                       enumeration_stats/4, to_fold_spec/3, int_lists/4,
                       nested_int_lists/5, show_program/1, show_tree/1, lgg_all/3 ]).
 :- use_module(library(lists)).
@@ -629,6 +629,12 @@ run_all(Cs, Name, Exs, Result) :-
 agrees(Cs, Name, Oracle, Ins, Result) :-
     run_inputs(Cs, Name, Ins, Rs),
     maplist(oracle_out(Oracle), Ins, Ws),
+    (   nth1(K, Ws, W), nth1(K, Rs, R), R \=@= W -> nth1(K, Ins, I), Result = counter_example(I, R, W)
+    ;   length(Ins, N), Result = equal_on(N) ).
+% agrees_prog(+Program, +Name, +Reference, +RefName, +Inputs, -Result): as agrees/5, with the
+% reference given as a program
+agrees_prog(Cs, Name, Ref, RefName, Ins, Result) :-
+    run_inputs(Cs, Name, Ins, Rs), run_inputs(Ref, RefName, Ins, Ws),
     (   nth1(K, Ws, W), nth1(K, Rs, R), R \=@= W -> nth1(K, Ins, I), Result = counter_example(I, R, W)
     ;   length(Ins, N), Result = equal_on(N) ).
 oracle_out(Oracle, In, W) :- ( catch(call(Oracle, In, W0), _, fail) -> W = W0 ; W = err ).

@@ -1,14 +1,18 @@
 /*  generate_io_synth.pl -- 200 input/output pairs for io_synth.pl, each produced by running
     the code: structural signals, anti-unification, nested and hierarchical predicates by
-    top-down propagation (each checked against a reference predicate on a pool of inputs),
-    the genetic algorithm, active learning with an oracle, the checks, the reductions, and
-    input/output to an algorithm through fold.pl. From the repository root:
+    top-down propagation, the reductions, the genetic algorithm, active learning with an
+    oracle, the checks, and input/output to an algorithm through fold.pl. Each program found
+    is proved equal to its reference program (prolog/io_synth_refs.pl) by prolog/io_proof.pl
+    for every input of the declared types, or the output says it is not proved; each is also
+    run against its reference on a pool of inputs. From the repository root:
         swipl -q -g main -t halt io_pairs/generate_io_synth.pl
     writes io_pairs/io_synth_pairs.jsonl and io_pairs/io_synth_pairs.md. */
 :- prolog_load_context(directory, D), assertz(user:io_dir(D)).
 :- use_module(harness).
 :- use_module(to_markdown).
 :- use_module('../prolog/io_synth').
+:- use_module('../prolog/io_proof').
+:- use_module('../prolog/io_synth_refs').
 :- use_module('../prolog/fold', [spec_to_algorithm/5, verify/5, show/1, clauses/2, bounded_equal/7]).
 :- style_check(-singleton).
 
@@ -16,39 +20,49 @@
 pool(flat, P) :- int_lists(4, -2, 3, P).
 pool(small, P) :- int_lists(3, -2, 3, P).
 pool(nested, P) :- nested_int_lists(2, 2, 0, 3, P).
-defined(Ref, Pool0, Pool) :- include([I]>>catch(call(Ref, I, _), _, fail), Pool0, Pool).
 
 show_examples(Exs) :- format("examples:~n"), forall(member(I-O, Exs), format("  ~q -> ~q~n", [I, O])).
 
-% show_synth(+Name, +Examples, +Options, :Reference, +PoolName)
-show_synth(Name, Exs, Opts, Ref, PoolName) :-
+% the proof against the reference program, then the run of both on a pool of inputs
+proof_and_run(P, Name, PoolName) :-
+    ref(Name, Types, R), atom_concat(ref_, Name, RN),
+    format("proof against the reference ~w/2:~n", [RN]),
+    prove_equal(P, Name, R, RN, Types, Proof), show_proof(Proof),
+    pool(PoolName, Pool), agrees_prog(P, Name, R, RN, Pool, A),
+    format("both run on every input of the pool: ~w~n", [A]).
+
+ref_oracle(Name, In, Out) :- ref(Name, _, R), atom_concat(ref_, Name, RN), run_program(R, RN, In, Out).
+
+% show_synth(+Name, +Examples, +Options, +PoolName)
+show_synth(Name, Exs, Opts, PoolName) :-
     show_examples(Exs),
     (   synth(Name, Exs, [ga(false)|Opts], P, report(Tree, _, stats(candidates(C), pruned_equivalent(Pr), type_rejected(TR))))
     ->  format("hypothesis tree:~n"), show_tree(Tree),
         format("program:~n"), show_program(P),
         format("candidates built: ~w; dropped as observationally equivalent: ~w; arguments refused by type: ~w~n", [C, Pr, TR]),
-        pool(PoolName, Pool0), defined(Ref, Pool0, Pool), agrees(P, Name, Ref, Pool, A),
-        format("against the reference on every input of the pool: ~w~n", [A])
+        proof_and_run(P, Name, PoolName)
     ;   format("no program found~n") ).
 
-% show_ga(+Name, +Examples, +Seed, :Reference)
-show_ga(Name, Exs, Seed, Ref) :-
+% show_ga(+Name, +Examples, +Seed)
+show_ga(Name, Exs, Seed) :-
     show_examples(Exs),
     (   ga_synth(Name, Exs, [seed(Seed)], P, ga_report(G, Genome))
     ->  show_tree(node(Name, ga(Genome, generations(G)), [])),
         format("program:~n"), show_program(P),
-        pool(flat, Pool0), defined(Ref, Pool0, Pool), agrees(P, Name, Ref, Pool, A),
-        format("against the reference on every input of the pool: ~w~n", [A])
+        proof_and_run(P, Name, flat)
     ;   format("no pipeline within the generation limit~n") ).
 
-% show_active(+Name, :Oracle, +PoolName, +Options)
-show_active(Name, Oracle, PoolName, Opts) :-
+% show_active(+Name, +PoolName, +Options): the oracle runs the reference program
+show_active(Name, PoolName, Opts) :-
     pool(PoolName, Pool), length(Pool, NP),
-    format("pool: ~w inputs~n", [NP]),
-    (   active_synth(Name, Oracle, Pool, [ga(false)|Opts], P, active(R, examples(N), Trace, Final))
+    format("pool: ~w inputs; the oracle runs the reference program~n", [NP]),
+    (   active_synth(Name, ref_oracle(Name), Pool, [ga(false)|Opts], P, active(R, examples(N), Trace, Final))
     ->  forall(member(T, Trace), format("query: ~q~n", [T])),
         format("rounds: ~w; examples used: ~w; final check: ~w~nprogram:~n", [R, N, Final]),
-        show_program(P)
+        show_program(P),
+        ref(Name, Types, Rf), atom_concat(ref_, Name, RN),
+        format("proof against the reference ~w/2:~n", [RN]),
+        prove_equal(P, Name, Rf, RN, Types, Proof), show_proof(Proof)
     ;   format("no program within the round limit~n") ).
 
 show_signals(Exs) :- signals(Exs, S), numbervars(S, 0, _), forall(member(X, S), format("~p~n", [X])).
@@ -62,23 +76,29 @@ show_stats(Vars, Envs, Size) :-
     format("without observational equivalence: ~w expressions kept (~w built)~n", [NO, CO]),
     format("with observational equivalence:    ~w expressions kept (~w built)~n", [NW, CW]).
 
-show_agrees(Cs, Name, Ref, PoolName) :- pool(PoolName, Pool0), defined(Ref, Pool0, Pool), agrees(Cs, Name, Ref, Pool, A), format("~q~n", [A]).
+show_equal(P1, N1, P2, N2, Types) :- prove_equal(P1, N1, P2, N2, Types, R), show_proof(R).
 show_run_all(Cs, Name, Exs) :- run_all(Cs, Name, Exs, R), format("~q~n", [R]).
 show_fold_spec(Cs, Name) :- ( to_fold_spec(Cs, Name, S) -> format("specification for fold.pl:~n"), show_program(S) ; format("not a fold.pl specification: it calls a library predicate~n") ).
 
-% show_algorithm(+Name, +Examples, +Exclude, +Mode, +Size)
+% show_to_algorithm(+Name, +Examples, +Exclude, +Mode, +Size)
 show_to_algorithm(Name, Exs, Ex, Mode, Size) :-
     show_examples(Exs),
-    (   synth(Name, Exs, [exclude(Ex), ga(false)], P, _), to_fold_spec(P, Name, SpecCs), clauses(SpecCs, S)
-    ->  format("specification found:~n"), show(S),
-        (   spec_to_algorithm(S, Name/2, [], P0, report(St, _, Used, _, _))
-        ->  verify(S, P0, Name/2, Mode, verdict(total(T), functional(F), typed_answers(Ty), _, PF)),
-            format("derived by ~w (lemmas ~w):~n", [St, Used]), show(PF),
-            format("total: ~w; specification functional: ~w; typed answers: ~w~n", [T, F, Ty]),
-            bounded_equal(S, Name/2, PF, Name/2, Mode, Size, B), format("bounded check: ~w~n", [B])
-        ;   format("no derivation: fold.pl's strategies do not apply to this specification~n") )
-    ;   synth(Name, Exs, [exclude(Ex), ga(false)], P1, _)
-    ->  format("program found, but it is not a fold.pl specification:~n"), show_program(P1)
+    (   synth(Name, Exs, [exclude(Ex), ga(false)], P, _)
+    ->  ref(Name, Types, R), atom_concat(ref_, Name, RN),
+        format("program found:~n"), show_program(P),
+        format("proof against the reference ~w/2:~n", [RN]),
+        prove_equal(P, Name, R, RN, Types, Proof), show_proof(Proof),
+        (   to_fold_spec(P, Name, SpecCs), clauses(SpecCs, S)
+        ->  (   spec_to_algorithm(S, Name/2, [], P0, report(St, _, Used, _, _))
+            ->  verify(S, P0, Name/2, Mode, verdict(total(T), functional(F), typed_answers(Ty), _, PF)),
+                format("fold.pl derives, by ~w (lemmas ~w):~n", [St, Used]), show(PF),
+                format("total: ~w; specification functional: ~w; typed answers: ~w~n", [T, F, Ty]),
+                (   T == yes, F == yes
+                ->  format("so the derived program equals the specification on every input of the declared types~n")
+                ;   format("so equality with the specification is not proved~n") ),
+                bounded_equal(S, Name/2, PF, Name/2, Mode, Size, B), format("bounded check: ~w~n", [B])
+            ;   format("no derivation: fold.pl's strategies do not apply to this specification~n") )
+        ;   format("not a fold.pl specification: it calls a library predicate~n") )
     ;   format("no program found~n") ).
 
 % ---------------------------------------------------------------- problems
@@ -110,7 +130,7 @@ hier(negatives, [[1,-2,3,-1]-[-2,-1], [5]-[], [-3,0]-[-3]], [], [L, R]>>include(
 hier(zeros, [[1,0,3,0]-[0,0], [5]-[], [0,-1]-[0]], [], [L, R]>>include([X]>>(X =:= 0), L, R), flat, "keep the zeros").
 hier(at_least_two, [[1,2,3,0]-[2,3], [5,1]-[5], [2]-[2]], [], [L, R]>>include([X]>>(X >= 2), L, R), flat, "keep the elements of at least two").
 hier(evens_each, [[[1,2,4],[3,4]]-[[2,4],[4]], [[5,6,8]]-[[6,8]], [[]]-[[]], [[7,1]]-[[]], []-[]], [], [L, R]>>maplist(include([X]>>(X mod 2 =:= 0)), L, R), nested, "keep the even elements of each sublist (map of filter)").
-hier(positives_each, [[[1,0,2],[0,3]]-[[1,2],[3]], [[0,2,0]]-[[2]], [[]]-[[]], []-[]], [], [L, R]>>maplist(include([X]>>(X > 0)), L, R), nested, "keep the positive elements of each sublist").
+hier(positives_each, [[[1,0,2],[0,3]]-[[1,2],[3]], [[0,2,0]]-[[2]], [[-1,4]]-[[4]], [[]]-[[]], []-[]], [], [L, R]>>maplist(include([X]>>(X > 0)), L, R), nested, "keep the positive elements of each sublist").
 hier(dropmin, [[3,1,2]-[3,2], [7,9,8]-[9,8], [5,6,4]-[5,6]], [], [L, R]>>(L == [] -> R = [] ; min_list(L, M), exclude(==(M), L, R)), flat, "drop the minimum (a test gated by the whole list)").
 hier(dropmax, [[3,1,2]-[1,2], [7,9,8]-[7,8], [5,6,4]-[5,4]], [], [L, R]>>(L == [] -> R = [] ; max_list(L, M), exclude(==(M), L, R)), flat, "drop the maximum").
 hier(keep_max, [[3,1,2]-[3], [7,9]-[9], [5,6,4,1]-[6], [2,2]-[2,2], []-[]], [], [L, R]>>(L == [] -> R = [] ; max_list(L, M), include(==(M), L, R)), flat, "keep only the maximum").
@@ -136,7 +156,7 @@ hier(reverse_fold, [[1,2,3]-[3,2,1], [4]-[4], []-[], [2,5]-[5,2]], [exclude([rev
 hier(product, [[1,2,3]-6, [4]-4, []-1, [2,5]-10], [], [L, P]>>foldl([X, A0, A]>>(A is A0 * X), L, 1, P), flat, "product of the elements (foldr)").
 hier(count_odds, [[1,2,3]-2, [4]-0, []-0, [5,7,9]-3, [2,4,1]-1], [], [L, N]>>(include([X]>>(X mod 2 =:= 1), L, O), length(O, N)), flat, "count the odd elements (foldr)").
 hier(sum_squares, [[1,2,3]-14, [4]-16, []-0, [2,5]-29], [], [L, S]>>foldl([X, A0, A]>>(A is A0 + X * X), L, 0, S), flat, "sum of squares (foldr)").
-hier(sum_doubles, [[1,2,3]-12, [4]-8, []-0, [2,5]-14], [], [L, S]>>foldl([X, A0, A]>>(A is A0 + 2 * X), L, 0, S), flat, "sum of doubled elements (foldr)").
+hier(sum_doubles, [[1,2,3]-12, [4]-8, []-0, [2,5]-14], [exclude([sum])], [L, S]>>foldl([X, A0, A]>>(A is A0 + 2 * X), L, 0, S), flat, "sum of doubled elements (foldr)").
 hier(max_fold, [[1,3,2]-3, [4]-4, [2,5]-5, [0,1]-1, []-0], [exclude([maxl, msort, sort, last])], [L, M]>>(L == [] -> M = 0 ; max_list([0|L], M)), flat, "maximum without max_list (foldr)").
 hier(flatten, [[[1,2],[3]]-[1,2,3], [[4]]-[4], []-[], [[],[5]]-[5]], [], [L, R]>>append(L, R), nested, "flatten a list of lists (foldr with append)").
 hier(sorted, [[3,1,2]-[1,2,3], [5,4]-[4,5], [2,2,1]-[1,2,2]], [], [L, R]>>msort(L, R), flat, "sort keeping duplicates").
@@ -260,14 +280,14 @@ stat([x-int, l-list(int)], [[x=1, l=[1,2]], [x=2, l=[1,2]], [x=5, l=[5]]], 4, "e
 stat([r-list(int), x-int], [[r=[], x=1], [r=[2], x=3]], 4, "list fold combiner, size 4").
 
 % check(Kind, Query, Title)
-check_pair(agrees, "show_agrees([d(L, R) :- msort(L, R)], d, [L, R]>>sort(L, R), flat)", "msort is not sort: a counter-example with duplicates").
-check_pair(agrees, "show_agrees([d(L, R) :- msort(L, R)], d, [L, R]>>msort(L, R), flat)", "a program equal to its reference").
-check_pair(agrees, "show_agrees([(e(L, R) :- include([X]>>(X > 1), L, R))], e, [L, R]>>include([X]>>(X mod 2 =:= 0), L, R), flat)", "keep x > 1 is not keep the evens").
-check_pair(agrees, "show_agrees([(m(L, R) :- L = [_|_], max_list(L, R))], m, [L, R]>>max_list(L, R), flat)", "maximum, where the reference is undefined on []").
-check_pair(agrees, "show_agrees([(m([X|_], X))], m, [L, R]>>max_list(L, R), flat)", "the first element is not the maximum").
-check_pair(agrees, "show_agrees([(s(L, S) :- sum_list(L, S0), S is abs(S0))], s, [L, S]>>sum_list(L, S), flat)", "the absolute sum differs on negative sums").
-check_pair(agrees, "show_agrees([s([], 0), (s([X|Xs], S) :- s(Xs, S0), S is S0 + X)], s, [L, S]>>sum_list(L, S), flat)", "a recursive sum equal to sum_list").
-check_pair(agrees, "show_agrees([(r(L, R) :- reverse(L, R))], r, [L, R]>>reverse(L, R), nested)", "reverse on nested lists").
+check_pair(proof, "show_equal([d([],[]), (d([X|Xs],[Y|Ys]) :- Y is 2*X, d(Xs,Ys))], d, [e([],[]), (e([X|Xs],[Y|Ys]) :- Y is X+X, e(Xs,Ys))], e, [list(int), any])", "2*X and X+X: proved").
+check_pair(proof, "show_equal([d([],[]), (d([X|Xs],[Y|Ys]) :- Y is 2*X, d(Xs,Ys))], d, [e([],[]), (e([X|Xs],[Y|Ys]) :- Y is 2*X+1, e(Xs,Ys))], e, [list(int), any])", "2*X and 2*X+1: not proved").
+check_pair(proof, "show_equal([(s(L, R) :- msort(L, R))], s, [(t(L, R) :- sort(L, R))], t, [list(int), any])", "msort and sort are different library calls: not proved").
+check_pair(proof, "show_equal([f([],[]), (f([X|Xs],R) :- (X > 1 -> R=[X|R1] ; R=R1), f(Xs,R1))], f, [g([],[]), (g([X|Xs],R) :- (X >= 2 -> R=[X|R1] ; R=R1), g(Xs,R1))], g, [list(int), any])", "X > 1 and X >= 2 on integers: proved").
+check_pair(proof, "show_equal([f([],[]), (f([X|Xs],R) :- (X mod 2 < 1 -> R=[X|R1] ; R=R1), f(Xs,R1))], f, [g([],[]), (g([X|Xs],R) :- (X mod 2 =:= 1 -> R=R1 ; R=[X|R1]), g(Xs,R1))], g, [list(int), any])", "residues and a flipped if-then-else: proved").
+check_pair(proof, "show_equal([f([],_,[]), (f([X|Xs],M,R) :- (X =\\= M -> R=[X|R1] ; R=R1), f(Xs,M,R1))], f, [g([],_,[]), (g([X|Xs],M,R) :- (X == M -> R=R1 ; R=[X|R1]), g(Xs,M,R1))], g, [list(int), int, any])", "== on integers read as =:=: proved").
+check_pair(proof, "show_equal([f([],_,[]), (f([X|Xs],M,R) :- (X =\\= M -> R=[X|R1] ; R=R1), f(Xs,M,R1))], f, [g([],_,[]), (g([X|Xs],M,R) :- (X == M -> R=R1 ; R=[X|R1]), g(Xs,M,R1))], g, [list(any), any, any])", "== on terms of unknown type is not =:=: not proved").
+check_pair(proof, "show_equal([c([],0), (c([_|Xs],N) :- c(Xs,M), N is M+1)], c, [d([],0), (d([X|Xs],N) :- d([X|Xs],M), N is M+1)], d, [list(int), any])", "a recursive call that is not on the tail cannot use the induction hypothesis: not proved").
 check_pair(run_all, "show_run_all([q(X, Y) :- Y is X + 1], q, [1-2, 2-4])", "the first example not reproduced").
 check_pair(run_all, "show_run_all([q(X, Y) :- Y is X + 1], q, [1-2, 2-3])", "every example reproduced").
 check_pair(run_all, "show_run_all([(loop(X, Y) :- loop(X, Y))], loop, [1-1])", "runaway recursion stops at the inference limit").
@@ -295,7 +315,7 @@ algo(sum_inc, [[1,2,3]-9, [4]-5, []-0, [2,5]-9], [sum], [in(list(int)), out], 4,
 algo(sum_neg, [[1,2,3]-(-6), [4]-(-4), []-0, [2,5]-(-7)], [sum], [in(list(int)), out], 4, "negated sum").
 algo(cnt_pos, [[1,2,3]-3, [4]-1, []-0, [2,5]-2], [len], [in(list(int)), out], 4, "length of integer lists").
 algo(sum_abs, [[1,-2,3]-6, [4]-4, []-0, [-2,5]-7], [sum], [in(list(int)), out], 4, "sum of absolute values").
-algo(sum_halves, [[4,5,6]-7, [1]-0, []-0, [9,9]-8], [sum], [in(list(int)), out], 4, "sum of halved elements").
+algo(sum_halves_fold, [[4,5,6]-7, [1]-0, []-0, [9,9]-8], [sum], [in(list(int)), out], 4, "sum of halved elements").
 algo(maxf, [[1,3,2]-3, [4]-4, [2,5]-5, [0,1]-1, []-0], [maxl, msort, sort, last], [in(list(int)), out], 4, "maximum of non-negative integers").
 
 % ---------------------------------------------------------------- main
@@ -305,17 +325,23 @@ main :-
     open_pairs(J),
     forall(sig(Exs, T), qpair('io_synth/signals', T, "", "show_signals(~q)", [Exs])),
     forall(lgg(Ts, T), qpair('io_synth/anti-unification', T, "", "show_lgg(~q)", [Ts])),
-    forall(hier(N, Exs, Opts, Ref, Pool, T),
-           qpair('io_synth/hierarchy', T, "", "show_synth(~q, ~q, ~q, ~q, ~q)", [N, Exs, Opts, Ref, Pool])),
+    forall(hier(N, Exs, Opts, _, Pool, T),
+           ( ref_text(N, RT), string_concat("% reference program\n", RT, Prog),
+             qpair('io_synth/hierarchy', T, Prog, "show_synth(~q, ~q, ~q, ~q)", [N, Exs, Opts, Pool]) )),
     forall(stat(Vs, Es, S, T), qpair('io_synth/reductions', T, "", "show_stats(~q, ~q, ~q)", [Vs, Es, S])),
-    forall(ga(N, Exs, Seed, Ref, T), qpair('io_synth/genetic', T, "", "show_ga(~q, ~q, ~q, ~q)", [N, Exs, Seed, Ref])),
-    forall(act(N, O, Pool, Opts, T), qpair('io_synth/active', T, "", "show_active(~q, ~q, ~q, ~q)", [N, O, Pool, Opts])),
+    forall(ga(N, Exs, Seed, _, T),
+           ( ref_text(N, RT), string_concat("% reference program\n", RT, Prog),
+             qpair('io_synth/genetic', T, Prog, "show_ga(~q, ~q, ~q)", [N, Exs, Seed]) )),
+    forall(act(N, _, Pool, Opts, T),
+           ( ref_text(N, RT), string_concat("% reference program (the oracle)\n", RT, Prog),
+             qpair('io_synth/active', T, Prog, "show_active(~q, ~q, ~q)", [N, Pool, Opts]) )),
     forall(check_pair(K, Q, T), ( atom_concat('io_synth/checks-', K, Cat), pair(Cat, T, "", Q) )),
     forall(algo(N, Exs, Ex, Mode, Size, T),
-           qpair('io_synth/to-algorithm', T, "", "show_to_algorithm(~q, ~q, ~q, ~q, ~q)", [N, Exs, Ex, Mode, Size])),
+           ( ref_text(N, RT), string_concat("% reference program\n", RT, Prog),
+             qpair('io_synth/to-algorithm', T, Prog, "show_to_algorithm(~q, ~q, ~q, ~q, ~q)", [N, Exs, Ex, Mode, Size]) )),
     close_pairs,
     to_markdown(J, M, "io_synth",
-        "Each pair is a query to `prolog/io_synth.pl`, which finds nested and hierarchical predicates from input/output examples: structural signals, anti-unification, hierarchies found by top-down propagation (each checked against a reference predicate on every input of a pool), the size of the search with and without observational equivalence, the genetic algorithm, active learning with an oracle, the checks, and input/output to an algorithm through `fold.pl`. Every output was produced by running this repository's code with `io_pairs/generate_io_synth.pl`; nothing was written by hand."),
+        "Each pair is a query to `prolog/io_synth.pl`, which finds nested and hierarchical predicates from input/output examples: structural signals, anti-unification, hierarchies found by top-down propagation (each checked against a reference predicate on every input of a pool), the size of the search with and without observational equivalence, the genetic algorithm, active learning with an oracle, the checks, and input/output to an algorithm through `fold.pl`. Each program found is proved equal to a reference program for every input of the declared types (`prolog/io_proof.pl`), or the output says that it is not proved; each is also run against its reference on a pool of inputs. Every output was produced by running this repository's code with `io_pairs/generate_io_synth.pl`; nothing was written by hand."),
     format(user_error, "~ndone~n", []).
 
 % qpair: the query text from a format string, with variables written as A, B, ...

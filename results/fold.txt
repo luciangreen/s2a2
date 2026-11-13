@@ -13,6 +13,7 @@
   Integer axioms (not proved here; used only where their variables are integers):
     plus_assoc (int): [A is B+C,D is A+E]  <=>  [F is C+E,D is B+F]
     times_assoc (int): [A is B*C,D is A*E]  <=>  [F is C*E,D is B*F]
+    max_assoc (int): [A is max(B,C),D is max(A,E)]  <=>  [F is max(C,E),D is max(B,F)]
 
 == 2. Six specifications, each from an EMPTY lemma database
 

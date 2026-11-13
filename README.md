@@ -89,7 +89,7 @@ Types are declared by their constructors (`set_types/1`). The defaults are `list
 
 ### The lemma database and lemma discovery
 
-A lemma about user predicates is admitted only after `prove_lemma/3` proves it. Both sides are deforested on the same induction variable, and the two derived programs must be the same up to the predicate name. Associativity of append passes. Integer arithmetic facts (associativity of `+` and `*`) are axioms of the integers. They are used only where their variables are integers, and `verify/5` reports whether every `is/2` in the result is on integers.
+A lemma about user predicates is admitted only after `prove_lemma/3` proves it. Both sides are deforested on the same induction variable, and the two derived programs must be the same up to the predicate name. Associativity of append passes. Integer arithmetic facts (associativity of `+`, `*` and `max`) are axioms of the integers. They are used only where their variables are integers, and `verify/5` reports whether every `is/2` in the result is on integers.
 
 When a strategy gets stuck, `discover_lemmas/4` looks at the stuck clauses and conjectures lemmas:
 
@@ -174,25 +174,29 @@ Three of the new specifications show open problems:
 - Doubling every element has no derivation, which is expected: it is already linear.
 - "Append four lists" derives, but the totality check fails on the result.
 
-[`io_pairs/io_synth_pairs.md`](io_pairs/io_synth_pairs.md) holds 200 more pairs for `io_synth.pl`, each produced by running the code (`io_pairs/generate_io_synth.pl`):
+[`io_pairs/io_synth_pairs.md`](io_pairs/io_synth_pairs.md) holds 200 more pairs for `io_synth.pl`, each produced by running the code (`io_pairs/generate_io_synth.pl`). Each program found is proved equal to a hand-written reference program for every input of its declared types (`io_proof.pl`), or the pair says it is not proved. Each is also run against its reference on a pool of inputs.
 
 | Category | Pairs | Result |
 | --- | --- | --- |
 | signals | 20 | |
 | anti-unification | 20 | |
-| hierarchy | 70 | each agrees with its reference predicate on every input of the pool |
+| hierarchy | 70 | all 70 proved equal to their reference, and equal on the pool |
 | reductions | 15 | |
-| genetic | 20 | each agrees with its reference |
-| active | 20 | each ends equal to the oracle on the whole pool |
-| checks | 20 | |
-| to-algorithm | 15 | 5 proved and pass the bounded check, 5 refuted, 5 have no derivation |
+| genetic | 20 | 12 proved; all 20 equal on the pool |
+| active | 20 | all 20 proved, and equal to the oracle on the pool |
+| checks | 20 | 8 on the prover (4 proved, 4 correctly refused), 6 on running programs, 6 on the hand-over to `fold.pl` |
+| to-algorithm | 15 | all 15 proved equal to their reference; `fold.pl` derives and proves an accumulator program for 14 |
 
 The 70 hierarchy problems cover maps, maps inside maps, filters, filters on each sublist, filters gated by the whole list, maps that use the whole list, templates from anti-unification and folds. The genetic pairs are 16 pipelines, plus one pipeline with five seeds.
 
-The to-algorithm pairs show two open problems in `fold.pl`:
+The 8 genetic programs that are not proved are equal to their reference only by a law the prover does not use:
 
-- **Refuted.** Sum of squares, sum of doubles, sum of absolute values, sum of halves and the odd count all have the form `S is S1 + f(H)`. For these, the accumulate strategy derives a program whose recursive call comes before the `is/2` that binds its accumulator. `verify/5` reports `total: no`, and the bounded check refutes it on `[0,0]`.
-- **No derivation.** Flatten, twice the length, the sum of incremented elements, the negated sum and the maximum have no derivation, because they need a lemma other than associativity of `+`, `*` or append.
+- squaring before filtering on parity (seeds 2 and 3, and the squares of the odd elements), which works because x·x and x have the same parity;
+- Σ2x = 2Σx (the sum of the doubled odd elements, twice the sum);
+- the largest square is the square of the largest absolute value;
+- `last(msort(L))` is `max_list(L)`, and the first element of the reverse is the last element.
+
+All 8 agree with their reference on all 1,555 lists of the pool. Flatten is the one to-algorithm pair with no derivation: it needs a lemma about `app/3` that `fold.pl` does not conjecture.
 
 ## Nested predicates from input/output (`io_synth.pl`)
 
@@ -214,17 +218,35 @@ The hypotheses are tried in order of cost: a constant, one expression, map, filt
 
 **Active learning.** `active_synth/6` takes an oracle: the original program, or a network. It works like counter-example-guided synthesis. While the candidate programs disagree, it asks the oracle about the pool input on which they give the most different answers. Once only one candidate's behaviour remains, it checks that candidate against the oracle on the pool and adds the first counter-example.
 
+**Proofs** (`io_proof.pl`). A program found from examples is proved equal to a reference program for every input of the declared types, not only for the inputs tried. `prove_equal/6` pairs off the clauses of the two predicates so that each pair is the same clause up to renaming of variables and order of goals, after these steps. Each step keeps the answers the same:
+
+| Step | What it does |
+| --- | --- |
+| unfold | A call to a non-recursive predicate with one clause is replaced by its body (Tamaki and Sato). |
+| equation | A body equation `X = T` is solved. |
+| inline | `V is E`, where V is used only in other arithmetic, is substituted. |
+| arithmetic | Expressions are compared as polynomials with integer coefficients, so `2*X`, `X+X` and `X*2` match. `//`, `mod` and `abs` are compared argument by argument; `max` and `min` are commutative. |
+| tests | Comparisons are put in a normal form (`P =< 0`, `P =:= 0` or `P =\= 0`, with P primitive), so `X > 1` and `X >= 2` match on integers. |
+| integers | `==` and `\==` become `=:=` and `=\=` where the declared types say both sides are integers. |
+| residues | Two tests that use only `E mod K` are compared on every residue 0..K-1. |
+| flip | `(C -> A ; B)` is `(\+ C -> B ; A)` for a test C. |
+| lemma | A call is replaced by a call proved equal to it, at the same argument types. |
+| induction | A pair of predicates that both recurse on the tail of the same list argument is proved by induction on that list. |
+
+Each proof lists the steps it used. The prover reports `not_proved` rather than guessing: it refuses `2*X` against `2*X+1`, `msort` against `sort`, `==` on terms of unknown type, and a recursive call that is not on the tail.
+
 **Results** (`results/io_synth.txt`, all from running `io_synth_examples.pl`):
 
-- **Six problems with nested or hierarchical structure, each solved by top-down propagation.** Each result agrees with a reference predicate on every input of a pool: 1,555 flat lists, or 7,311 nested lists.
-  - "Drop the minimum from each inner list" (the example in the notes) becomes a map over sublists. Its element predicate is a filter whose test, `x =\= min_list(l)`, uses the sublist's own minimum. The minimum is computed once per sublist.
+- **Six problems with nested or hierarchical structure, each solved by top-down propagation and proved equal to its reference program.** Each also agrees with its reference on every input of a pool: 1,555 flat lists, or 7,311 nested lists.
+  - "Drop the minimum from each inner list" (the example in the notes) becomes a map over sublists. Its element predicate is a filter whose test, `x =\= min_list(l)`, uses the sublist's own minimum. The minimum is computed once per sublist. The proof is by induction on the outer list, then on each sublist; it reads the reference's `X == M` as `X =:= M` on integers, and flips the if-then-else.
   - The other five are: double each element, increment every element of a list of lists (a map inside a map), subtract the minimum, the minimum and maximum (via the template `A-B`), and keep the even elements.
 - **Observational equivalence keeps 217 of 3,125 expressions** over a list, up to size 4. For fold combiners, it keeps 2,869 of 60,493.
-- **The genetic algorithm finds "sum of the squares of the even elements"** as filter, then map, then `sum_list`. With seed 1 this takes 26 generations, and the result agrees with the reference on all 1,555 lists. Every seed from 1 to 20 finds a three-gene pipeline, in 3 to 103 generations.
-- **Active learning on drop-minimum.** It starts from the single example in the notes, where four programs fit (including "keep x > 2"). It asks one distinguishing question, `[[3]]`, and the answer `[[]]` leaves the right program. That program then agrees with the oracle on all 7,311 pool inputs.
-- **From input/output to an algorithm.** With the library aggregate left out, the synthesised program for sum, length and reverse is a plain recursive specification. `fold.pl` then derives the accumulator versions and proves them equal. Reverse goes from four examples to `rev_acc`, using the lemma `app_assoc`, which it proves. All three pass the bounded check.
+- **The genetic algorithm finds "sum of the squares of the even elements"** as filter, then map, then `sum_list`. With seed 1 this takes 26 generations, and the result is proved equal to the reference. Every seed from 1 to 20 finds a three-gene pipeline, in 3 to 103 generations. 14 of the 20 are proved; the other 6 square before filtering, which is equal only because x·x and x have the same parity.
+- **Active learning on drop-minimum.** It starts from the single example in the notes, where four programs fit (including "keep x > 2"). It asks one distinguishing question, `[[3]]`, and the answer `[[]]` leaves the right program. That program then agrees with the oracle on all 7,311 pool inputs, and is proved equal to the reference program the oracle runs.
+- **From input/output to an algorithm.** With the library aggregate left out, the programs found for sum, length, reverse, sum of squares and maximum are plain recursive specifications. Each is proved equal to its reference, and `fold.pl` derives an accumulator version and proves it equal. Reverse goes from four examples to `rev_acc`, using the lemma `app_assoc`, which it proves. All five pass the bounded check.
+- **The prover refuses** `2*X` against `2*X+1`, and `=\=` against `==` on terms of unknown type. It proves the same pair when the types say both are integers.
 
-**What is still open.** The library of components is small. Predicates have one input and one output. Distinguishing inputs come from a finite pool, not a solver. Checking which predicate in a hierarchy acts first (an invalid outer container holding valid inner items) is not done. The genetic algorithm searches only straight-line pipelines.
+**What is still open.** The prover has no algebraic laws over whole lists, such as map and filter commuting or Σ2x = 2Σx, and no facts about library predicates. The library of components is small. Predicates have one input and one output. Distinguishing inputs come from a finite pool, not a solver. Checking which predicate in a hierarchy acts first (an invalid outer container holding valid inner items) is not done. The genetic algorithm searches only straight-line pipelines.
 
 ## Files
 
@@ -243,8 +265,10 @@ The hypotheses are tried in order of cost: a constant, one expression, map, filt
 | `prolog/prover.pl` | the prover (shared with renn_pipeline) |
 | `prolog/s2gn_cover.pl` | the S2GN coverage fix |
 | `prolog/io_synth.pl` | nested predicates from input/output: signals, top-down propagation, observational equivalence, types, anti-unification, genetic algorithm, active learning, hand-over to `fold.pl` |
-| `prolog/io_synth_tests.pl` | 30 tests for `io_synth.pl` |
-| `prolog/io_synth_examples.pl` | hierarchies from examples, the reductions measured, the genetic algorithm, active learning, input/output to algorithm (writes `results/io_synth.txt`) |
+| `prolog/io_proof.pl` | proves a program found from examples equal to a reference program, for every input of the declared types |
+| `prolog/io_synth_refs.pl` | the reference programs, written by hand |
+| `prolog/io_synth_tests.pl` | 40 tests for `io_synth.pl` and `io_proof.pl` |
+| `prolog/io_synth_examples.pl` | hierarchies from examples with proofs, the reductions measured, the genetic algorithm, active learning, input/output to algorithm, refusals (writes `results/io_synth.txt`) |
 
 ## Run
 

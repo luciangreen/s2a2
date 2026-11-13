@@ -2,6 +2,8 @@
 /*  io_synth_tests.pl -- the pieces of io_synth.pl.
     swipl -q -g main -t 'halt(1)' io_synth_tests.pl      (exits 1 if any test fails) */
 :- use_module(io_synth).
+:- use_module(io_proof).
+:- use_module(io_synth_refs).
 
 :- dynamic failed/1.
 t(Name, Goal) :- ( \+ \+ catch(Goal, E, ( print_message(error, E), fail )) -> format("  ~w: ok~n", [Name]) ; format("  ~w: FAILED~n", [Name]), assertz(failed(Name)) ).
@@ -74,6 +76,32 @@ main :-
     t(fold_spec_renames_append, ( to_fold_spec([r([], []), (r([X|Xs], R) :- r(Xs, R1), append(R1, [X], R))], r, S),
                                   memberchk(app([], _, _), S), \+ ( sub_term(T, S), nonvar(T), functor(T, append, 3) ) )),
     t(fold_spec_refuses_library_calls, ( \+ to_fold_spec([(m(L, M) :- min_list(L, M))], m, _) )),
+    % proofs (io_proof.pl)
+    t(proof_arithmetic_as_polynomials,
+      ( prove_equal([d([],[]), (d([X|Xs],[Y|Ys]) :- Y is 2*X, d(Xs,Ys))], d, [e([],[]), (e([X|Xs],[Y|Ys]) :- Y is X+X, e(Xs,Ys))], e, [list(int), any], proved(_)) )),
+    t(proof_refuses_different_arithmetic,
+      ( prove_equal([d([],[]), (d([X|Xs],[Y|Ys]) :- Y is 2*X, d(Xs,Ys))], d, [e([],[]), (e([X|Xs],[Y|Ys]) :- Y is 2*X+1, e(Xs,Ys))], e, [list(int), any], not_proved) )),
+    t(proof_tests_in_normal_form,
+      ( prove_equal([f([],[]), (f([X|Xs],R) :- (X > 1 -> R=[X|R1] ; R=R1), f(Xs,R1))], f, [g([],[]), (g([X|Xs],R) :- (X >= 2 -> R=[X|R1] ; R=R1), g(Xs,R1))], g, [list(int), any], proved(_)) )),
+    t(proof_refuses_different_tests,
+      ( prove_equal([f([],[]), (f([X|Xs],R) :- (X > 1 -> R=[X|R1] ; R=R1), f(Xs,R1))], f, [g([],[]), (g([X|Xs],R) :- (X >= 1 -> R=[X|R1] ; R=R1), g(Xs,R1))], g, [list(int), any], not_proved) )),
+    t(proof_residues_and_flip,
+      ( prove_equal([f([],[]), (f([X|Xs],R) :- (X mod 2 < 1 -> R=[X|R1] ; R=R1), f(Xs,R1))], f, [g([],[]), (g([X|Xs],R) :- (X mod 2 =:= 1 -> R=R1 ; R=[X|R1]), g(Xs,R1))], g, [list(int), any], proved(_)) )),
+    t(proof_equality_needs_integer_types,
+      ( F = [f([],_,[]), (f([X|Xs],M,R) :- (X =\= M -> R=[X|R1] ; R=R1), f(Xs,M,R1))],
+        G = [g([],_,[]), (g([X|Xs],M,R) :- (X == M -> R=R1 ; R=[X|R1]), g(Xs,M,R1))],
+        prove_equal(F, f, G, g, [list(int), int, any], proved(_)), prove_equal(F, f, G, g, [list(any), any, any], not_proved) )),
+    t(proof_induction_needs_the_tail,
+      ( prove_equal([c([],0), (c([_|Xs],N) :- c(Xs,M), N is M+1)], c, [d([],0), (d([X|Xs],N) :- d([X|Xs],M), N is M+1)], d, [list(int), any], not_proved) )),
+    t(proof_refuses_different_library_calls,
+      ( prove_equal([(s(L, R) :- msort(L, R))], s, [(t(L, R) :- sort(L, R))], t, [list(int), any], not_proved) )),
+    t(proof_of_a_synthesised_hierarchy,
+      ( synth(dropmin_each, [[[1,3,5],[5,3,2]]-[[3,5],[5,3]], [[7,9],[4]]-[[9],[]]], [ga(false)], P, _),
+        ref(dropmin_each, T, R), prove_equal(P, dropmin_each, R, ref_dropmin_each, T, proved(Steps)),
+        memberchk(pair(dropmin_each/2, ref_dropmin_each/2, induction(1)), Steps) )),
+    t(proof_lemmas_reused_only_at_the_same_types,
+      ( ref(evens_each, T, R), synth(evens_each, [[[1,2,4],[3,4]]-[[2,4],[4]], [[5,6,8]]-[[6,8]], [[]]-[[]], [[7,1]]-[[]], []-[]], [ga(false)], P, _),
+        prove_equal(P, evens_each, R, ref_evens_each, T, proved(_)) )),
     t(pools_are_shortest_first, ( int_lists(2, 0, 1, [[], [0], [1], [0,0]|_]) )),
     (   failed(_) -> format("FAILED~n"), halt(1) ; format("all io_synth tests passed~n"), halt(0) ).
 

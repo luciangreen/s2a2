@@ -2,7 +2,7 @@
 
   The shapes of the examples decide which hypotheses are tried.
 
-  dropmin: [in_type(list(list(int))),out_type(list(list(int))),length_preserved,nested_input,per_sublist,depth_preserved]
+  dropmin_each: [in_type(list(list(int))),out_type(list(list(int))),length_preserved,nested_input,per_sublist,depth_preserved]
   double: [in_type(list(int)),out_type(list(int)),length_preserved,empty_case([]),depth_preserved]
   inc_all: [in_type(list(list(int))),out_type(list(list(int))),length_preserved,nested_input,per_sublist,empty_case([]),depth_preserved]
   submin: [in_type(list(int)),out_type(list(int)),length_preserved,depth_preserved]
@@ -11,36 +11,61 @@
   dropmin_is_per_sublist: ok
   minmax_has_output_template: ok
 
-== 2. Hierarchical predicates by top-down propagation
+== 2. Hierarchical predicates by top-down propagation, with proofs
 
---- dropmin
+--- dropmin_each
   examples:
     [[1,3,5],[5,3,2]] -> [[3,5],[5,3]]
     [[7,9],[4]] -> [[9],[]]
   hypothesis tree:
-    dropmin: map: each element by the sub-predicate
-      dropmin_el: filter (context): keep x when x =\= min_list(l)
+    dropmin_each: map: each element by the sub-predicate
+      dropmin_each_el: filter (context): keep x when x =\= min_list(l)
   program:
-    dropmin([], []).
-    dropmin([A|B], [C|D]) :-
-        dropmin_el(A, C),
-        dropmin(B, D).
-    dropmin_el([], []).
-    dropmin_el([A|B], C) :-
+    dropmin_each([], []).
+    dropmin_each([A|B], [C|D]) :-
+        dropmin_each_el(A, C),
+        dropmin_each(B, D).
+    dropmin_each_el([], []).
+    dropmin_each_el([A|B], C) :-
         min_list([A|B], D),
-        dropmin_el_sel([A|B], D, C).
-    dropmin_el_sel([], _, []).
-    dropmin_el_sel([A|B], C, D) :-
-        (   dropmin_el_test(A, C)
+        dropmin_each_el_sel([A|B], D, C).
+    dropmin_each_el_sel([], _, []).
+    dropmin_each_el_sel([A|B], C, D) :-
+        (   dropmin_each_el_test(A, C)
         ->  D=[A|E]
         ;   D=E
         ),
-        dropmin_el_sel(B, C, E).
-    dropmin_el_test(A, B) :-
+        dropmin_each_el_sel(B, C, E).
+    dropmin_each_el_test(A, B) :-
         A=\=B.
   candidates built: 4917; dropped as observationally equivalent: 4138; arguments refused by type: 2021
-  against the reference on every input of the pool: equal_on(7311)
-  dropmin: ok
+  reference program:
+    ref_dropmin_each([], []).
+    ref_dropmin_each([A|B], [C|D]) :-
+        drop_min(A, C),
+        ref_dropmin_each(B, D).
+    drop_min([], []).
+    drop_min([A|B], C) :-
+        min_list([A|B], D),
+        del_eq([A|B], D, C).
+    del_eq([], _, []).
+    del_eq([A|B], C, D) :-
+        (   A==C
+        ->  D=E
+        ;   D=[A|E]
+        ),
+        del_eq(B, C, E).
+  proof that dropmin_each/2 = ref_dropmin_each/2:
+    proved for every input of the declared types:
+      unfold dropmin_each_el_test/2 (one clause, not recursive)
+      tests compared in normal form
+      == and \== on integers read as =:= and =\=
+      if-then-else with the test negated and the branches swapped
+      dropmin_each_el_sel/3 = del_eq/3 by induction on argument 1
+      dropmin_each_el/2 = drop_min/2 clause by clause
+      dropmin_each/2 = ref_dropmin_each/2 by induction on argument 1
+  both run on every input of the pool: equal_on(7311)
+  dropmin_each: ok
 
 --- double
   examples:
@@ -58,7 +83,17 @@
     double_el(A, B) :-
         B is 2*A.
   candidates built: 688; dropped as observationally equivalent: 442; arguments refused by type: 792
-  against the reference on every input of the pool: equal_on(1555)
+  reference program:
+    ref_double([], []).
+    ref_double([A|B], [C|D]) :-
+        C is A*2,
+        ref_double(B, D).
+  proof that double/2 = ref_double/2:
+    proved for every input of the declared types:
+      unfold double_el/2 (one clause, not recursive)
+      arithmetic compared as polynomials
+      double/2 = ref_double/2 by induction on argument 1
+  both run on every input of the pool: equal_on(1555)
   double: ok
 
 --- inc_all
@@ -82,7 +117,21 @@
     inc_all_el_el(A, B) :-
         B is A+1.
   candidates built: 1071; dropped as observationally equivalent: 724; arguments refused by type: 1316
-  against the reference on every input of the pool: equal_on(7311)
+  reference program:
+    ref_inc_all([], []).
+    ref_inc_all([A|B], [C|D]) :-
+        inc_row(A, C),
+        ref_inc_all(B, D).
+    inc_row([], []).
+    inc_row([A|B], [C|D]) :-
+        C is A+1,
+        inc_row(B, D).
+  proof that inc_all/2 = ref_inc_all/2:
+    proved for every input of the declared types:
+      unfold inc_all_el_el/2 (one clause, not recursive)
+      inc_all_el/2 = inc_row/2 by induction on argument 1
+      inc_all/2 = ref_inc_all/2 by induction on argument 1
+  both run on every input of the pool: equal_on(7311)
   inc_all: ok
 
 --- submin
@@ -105,7 +154,21 @@
     submin_el(A, B, C) :-
         C is A-B.
   candidates built: 2899; dropped as observationally equivalent: 1948; arguments refused by type: 3026
-  against the reference on every input of the pool: equal_on(1555)
+  reference program:
+    ref_submin([], []).
+    ref_submin([A|B], C) :-
+        min_list([A|B], D),
+        minus([A|B], D, C).
+    minus([], _, []).
+    minus([A|B], C, [D|E]) :-
+        D is A-C,
+        minus(B, C, E).
+  proof that submin/2 = ref_submin/2:
+    proved for every input of the declared types:
+      unfold submin_el/3 (one clause, not recursive)
+      submin_each/3 = minus/3 by induction on argument 1
+      submin/2 = ref_submin/2 clause by clause
+  both run on every input of the pool: equal_on(1555)
   submin: ok
 
 --- minmax
@@ -126,7 +189,16 @@
     minmax_2(A, B) :-
         max_list(A, B).
   candidates built: 899; dropped as observationally equivalent: 556; arguments refused by type: 1020
-  against the reference on every input of the pool: equal_on(1554)
+  reference program:
+    ref_minmax(A, B-C) :-
+        min_list(A, B),
+        max_list(A, C).
+  proof that minmax/2 = ref_minmax/2:
+    proved for every input of the declared types:
+      unfold minmax_1/2 (one clause, not recursive)
+      unfold minmax_2/2 (one clause, not recursive)
+      minmax/2 = ref_minmax/2 clause by clause
+  both run on every input of the pool: equal_on(1555)
   minmax: ok
 
 --- evens
@@ -148,7 +220,21 @@
     evens_test(A) :-
         A mod 2<1.
   candidates built: 2556; dropped as observationally equivalent: 2169; arguments refused by type: 950
-  against the reference on every input of the pool: equal_on(1555)
+  reference program:
+    ref_evens([], []).
+    ref_evens([A|B], C) :-
+        (   A mod 2=:=0
+        ->  C=[A|D]
+        ;   C=D
+        ),
+        ref_evens(B, D).
+  proof that evens/2 = ref_evens/2:
+    proved for every input of the declared types:
+      unfold evens_test/1 (one clause, not recursive)
+      tests on E mod K compared on every residue
+      tests compared in normal form
+      evens/2 = ref_evens/2 by induction on argument 1
+  both run on every input of the pool: equal_on(1555)
   evens: ok
 
 == 3. What the reductions remove
@@ -161,7 +247,7 @@
     without observational equivalence: 60493 expressions kept (60776 built)
     with observational equivalence:    2869 expressions kept (9629 built)
   pruning_keeps_fewer_combiners: ok
-  Top-down propagation: dropmin is solved as three small searches (the map, its
+  Top-down propagation: dropmin_each is solved as three small searches (the map, its
   element filter, the filter's test) instead of one search over whole programs.
 
 == 4. Genetic algorithm
@@ -197,54 +283,95 @@
         B is A*A.
     sum_sq_evens_s3(A, B) :-
         sum_list(A, B).
-  against the reference on every input of the pool: equal_on(1555)
+  reference program:
+    ref_sum_sq_evens(A, B) :-
+        evens(A, C),
+        squares(C, D),
+        sum_list(D, B).
+    evens([], []).
+    evens([A|B], C) :-
+        (   A mod 2=:=0
+        ->  C=[A|D]
+        ;   C=D
+        ),
+        evens(B, D).
+    squares([], []).
+    squares([A|B], [C|D]) :-
+        C is A*A,
+        squares(B, D).
+  proof that sum_sq_evens/2 = ref_sum_sq_evens/2:
+    proved for every input of the declared types:
+      unfold sum_sq_evens_s1_test/1 (one clause, not recursive)
+      unfold sum_sq_evens_s2_el/2 (one clause, not recursive)
+      unfold sum_sq_evens_s3/2 (one clause, not recursive)
+      tests on E mod K compared on every residue
+      tests compared in normal form
+      sum_sq_evens_s1/2 = evens/2 by induction on argument 1
+      sum_sq_evens_s2/2 = squares/2 by induction on argument 1
+      sum_sq_evens/2 = ref_sum_sq_evens/2 clause by clause
+  both run on every input of the pool: equal_on(1555)
   ga_pipeline: ok
-  seeds 1 to 20: 20 found a pipeline, in 3 to 103 generations, at most 3 genes after shortening
+  seeds 1 to 20: 20 found a pipeline, in 3 to 103 generations, at most 3 genes after shortening;
+  14 proved equal to the reference; the other 6 square first and filter after, which is
+  equal only because x*x and x have the same parity, a law the prover does not use
   ga_every_seed: ok
 
 == 5. Active learning with an oracle
 
   From the single example [[1,3,5],[5,3,2]] -> [[3,5],[5,3]], several programs fit
-  (keep x > 2, keep x =\= min, ...). The loop asks the oracle about the input on which
-  the candidates disagree most, then checks the survivor on the whole pool.
+  (keep x > 2, keep x =\= min, ...). The loop asks the oracle (the reference program) about
+  the input on which the candidates disagree most, then checks the survivor on the pool.
     query: distinguish([[3]]-[[]],candidates(4))
   rounds: 2; examples used: 2; final check: equal_on(7311)
   program:
-    dropmin([], []).
-    dropmin([A|B], [C|D]) :-
-        dropmin_el(A, C),
-        dropmin(B, D).
-    dropmin_el([], []).
-    dropmin_el([A|B], C) :-
+    dropmin_each([], []).
+    dropmin_each([A|B], [C|D]) :-
+        dropmin_each_el(A, C),
+        dropmin_each(B, D).
+    dropmin_each_el([], []).
+    dropmin_each_el([A|B], C) :-
         min_list([A|B], D),
-        dropmin_el_sel([A|B], D, C).
-    dropmin_el_sel([], _, []).
-    dropmin_el_sel([A|B], C, D) :-
-        (   dropmin_el_test(A, C)
+        dropmin_each_el_sel([A|B], D, C).
+    dropmin_each_el_sel([], _, []).
+    dropmin_each_el_sel([A|B], C, D) :-
+        (   dropmin_each_el_test(A, C)
         ->  D=[A|E]
         ;   D=E
         ),
-        dropmin_el_sel(B, C, E).
-    dropmin_el_test(A, B) :-
+        dropmin_each_el_sel(B, C, E).
+    dropmin_each_el_test(A, B) :-
         A=\=B.
+  proof that dropmin_each/2 = ref_dropmin_each/2:
+    proved for every input of the declared types:
+      unfold dropmin_each_el_test/2 (one clause, not recursive)
+      tests compared in normal form
+      == and \== on integers read as =:= and =\=
+      if-then-else with the test negated and the branches swapped
+      dropmin_each_el_sel/3 = del_eq/3 by induction on argument 1
+      dropmin_each_el/2 = drop_min/2 clause by clause
+      dropmin_each/2 = ref_dropmin_each/2 by induction on argument 1
   active_dropmin: ok
 
 == 6. From input/output to an algorithm
 
-  With the library aggregate left out, the synthesised program is a plain recursive
-  specification. fold.pl turns it into an accumulator program and proves them equal.
+  With the library aggregate left out, the program found is a plain recursive
+  specification. It is proved equal to its reference; fold.pl then derives an
+  accumulator program and proves it equal to the specification.
 
 --- sum
   specification found from [[1,2,3]-6,[4]-4,[]-0,[2,5]-7] examples:
     sum([],0).
     sum([A|B],C) :- sum(B,D), C is D+A.
+  proof that it equals the reference ref_sum/2:
+    proved for every input of the declared types:
+      sum/2 = ref_sum/2 by induction on argument 1
   derived by accumulate (lemmas [plus_assoc]):
     sum([],0).
     sum([A|B],C) :- sum_acc(B,C,A).
     sum_acc([],A,B) :- A is 0+B.
     sum_acc([A|B],C,D) :- E is A+D, sum_acc(B,C,E).
   total: yes; specification functional: yes; typed answers: no
-  (the specification also adds floats, where the integer axiom does not hold
+  (the specification also accepts floats, where the integer axiom does not hold
   exactly, so equality is stated for integer lists, as in results/fold.txt)
   bounded check: equal_on(341)
   sum: ok
@@ -253,6 +380,9 @@
   specification found from [[1,2,3]-3,[4]-1,[]-0,[5,6]-2] examples:
     len([],0).
     len([A|B],C) :- len(B,D), C is D+1.
+  proof that it equals the reference ref_len/2:
+    proved for every input of the declared types:
+      len/2 = ref_len/2 by induction on argument 1
   derived by accumulate (lemmas [plus_assoc]):
     len([],0).
     len([A|B],C) :- len_acc(B,C,1).
@@ -268,6 +398,9 @@
     rev([A|B],C) :- rev(B,D), app(D,[A],C).
     app([],A,A).
     app([A|B],C,[A|D]) :- app(B,C,D).
+  proof that it equals the reference ref_rev/2:
+    proved for every input of the declared types:
+      rev/2 = ref_rev/2 by induction on argument 1
   derived by accumulate (lemmas [app_assoc]):
     rev([],[]).
     rev([A|B],C) :- rev_acc(B,[A],C).
@@ -276,3 +409,56 @@
   total: yes; specification functional: yes; typed answers: yes
   bounded check: equal_on(255)
   rev: ok
+
+--- sumsq
+  specification found from [[1,2,3]-14,[4]-16,[]-0,[2,5]-29] examples:
+    sumsq([],0).
+    sumsq([A|B],C) :- sumsq(B,D), C is D+A*A.
+  proof that it equals the reference ref_sumsq/2:
+    proved for every input of the declared types:
+      arithmetic compared as polynomials
+      sumsq/2 = ref_sumsq/2 by induction on argument 1
+  derived by accumulate (lemmas [plus_assoc]):
+    sumsq([],0).
+    sumsq([A|B],C) :- D is A*A, sumsq_acc(B,C,D).
+    sumsq_acc([],A,B) :- A is 0+B.
+    sumsq_acc([A|B],C,D) :- E is A*A+D, sumsq_acc(B,C,E).
+  total: yes; specification functional: yes; typed answers: no
+  (the specification also accepts floats, where the integer axiom does not hold
+  exactly, so equality is stated for integer lists, as in results/fold.txt)
+  bounded check: equal_on(341)
+  sumsq: ok
+
+--- maxf
+  specification found from [[1,3,2]-3,[4]-4,[2,5]-5,[0,1]-1,[]-0] examples:
+    maxf([],0).
+    maxf([A|B],C) :- maxf(B,D), C is max(D,A).
+  proof that it equals the reference ref_maxf/2:
+    proved for every input of the declared types:
+      maxf/2 = ref_maxf/2 by induction on argument 1
+  derived by accumulate (lemmas [max_assoc]):
+    maxf([],0).
+    maxf([A|B],C) :- maxf_acc(B,C,A).
+    maxf_acc([],A,B) :- A is max(0,B).
+    maxf_acc([A|B],C,D) :- E is max(A,D), maxf_acc(B,C,E).
+  total: yes; specification functional: yes; typed answers: no
+  (the specification also accepts floats, where the integer axiom does not hold
+  exactly, so equality is stated for integer lists, as in results/fold.txt)
+  bounded check: equal_on(341)
+  maxf: ok
+
+== 7. The prover refuses programs that are not equal
+
+  2*X against 2*X+1:
+    not proved
+  different_arithmetic_refused: ok
+  =\= against == on integers:
+    proved for every input of the declared types:
+      tests compared in normal form
+      == and \== on integers read as =:= and =\=
+      if-then-else with the test negated and the branches swapped
+      f/3 = g/3 by induction on argument 1
+  integer_equality_proved: ok
+  =\= against == on terms of any type:
+    not proved
+  term_equality_refused: ok
