@@ -44,6 +44,7 @@ Learn an optimisation algorithm (a list of rewrite rules with conditions) from t
 | R34 | Accumulate for `S is S1 + f(H)`, and sums not written as `S1 + Rest` | done (`fold.pl` evaluates the start value of the accumulator and reorders sums; `max_assoc` axiom; 14 of 15 to-algorithm derivations proved) |
 | R35 | Derive flatten of a list of lists | done (`fuse` strategy: the recursive call and its consumer become one predicate; `total/3` handles the two-predicate cycle with a lexicographic measure; all 15 to-algorithm derivations proved) |
 | R36 | Prove "drop the maximum" against the natural reference (`X == M` removed) | done (`io_proof.pl` invariant from `max_list/2`: under `X =< M`, `X < M` holds exactly when `X =\= M`) |
+| R37 | mnns's input-address projection and exact integer polynomials (degree 1 to 3) in `io_synth` | done (12 of 12 shared tasks with mnns `s2a/4`, all passing held-out inputs) |
 
 ## Results (`results/`)
 
@@ -55,7 +56,7 @@ All 13 families (44 tests): every test result equals the axioms' result. Every r
 2. **Conditions the data never forces.** When no training step has a negative, the learner keeps no condition (`unfold when []`). This is safe, because the operator only fires where it is sound, but it differs from the axioms. More varied training pairs, or prover-generated near-miss pairs, would force the conditions.
 3. **Bigger programs.** Iterative deepening is limited to depth 8. Use the MNN ordering with beam search for longer derivations.
 4. **Plain data words.** Data words (not names) inside strings still need S2GN symbols. Connect `s2gn_cover.pl` for string arguments.
-5. **Replace s2a in mnns.** Write an adapter so the mnns repository can call `learn/2` and `apply_algorithm/5`, and `io_synth` for specs, instead of its address/polynomial finder (`docs/mnns_s2a_vs_s2a2.md`: on 12 shared tasks mnns `s2a/4` solves 4 and `io_synth` 10). Add mnns's two methods that `io_synth` lacks: projection from a compound term and exact polynomial fitting.
+5. **Replace s2a in mnns.** For specs, mnns's `s2a2_bridge.pl` now calls `io_synth` when its own `s2a/4` finds nothing, and `io_synth` has mnns's projection and exact polynomial fitting (`docs/mnns_s2a_vs_s2a2.md`: on 12 shared tasks mnns `s2a/4` solves 4, `io_synth` 12). Still open: calling `learn/2` and `apply_algorithm/5` from mnns for optimisation, and carrying S2A2's proofs into mnns's proof format.
 6. **More operators.** Loop fusion, accumulators and tupling now exist as strategies of `fold.pl`. Still open: strategies that need other kinds of lemma (distributivity) or new data structures.
 7. **Richer types.** proof/types proves inclusion of single slots. Tuple types (two slots together), negated types (`\+ t(X)`), and inclusions that depend on facts rather than holding for every input are not yet proved. Dimensions need unit declarations; inferring units from data is open.
 8. **More training examples for the strategy learner.** Six examples are few; a held-out case with no similar training example falls back to the fixed order.

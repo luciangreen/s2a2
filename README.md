@@ -214,7 +214,7 @@ Brute-force induction is too slow because the number of candidate programs grows
 | Types | Each component is typed, so an argument of the wrong type is never built. |
 | Anti-unification | The least general generalisation of the outputs (Plotkin) is a template, such as `Min-Max`. Each hole in it is solved on its own. |
 
-The hypotheses are tried in order of cost: a constant, one expression, map, filter, template, then foldr. Map and filter can also use the whole list as context. For example, "keep x when x =\= min_list(l)" and "x - min_list(l)" are learned this way, and the part that depends only on the list is moved out of the recursion. Every program returned has been run on every example and reproduces it.
+The hypotheses are tried in order of cost: a constant, one expression, an exact integer polynomial (degree 1 to 3), a projection of the input at a unique address, map, filter, template, then foldr. The polynomial and projection come from the `s2a/4` in mnns (`docs/mnns_s2a_vs_s2a2.md`). Map and filter can also use the whole list as context. For example, "keep x when x =\= min_list(l)" and "x - min_list(l)" are learned this way, and the part that depends only on the list is moved out of the recursion. Every program returned has been run on every example and reproduces it.
 
 **Genetic algorithm.** Some pipelines can't be split top-down, such as filter, then map, then aggregate. For these, a genetic algorithm searches sequences of genes. The genes are list operations, aggregates, `map(E)`, `filter(T)` and scalar expressions, where E and T are the observationally distinct expressions from the enumerator. It uses partial-credit fitness, tournament selection, one-point crossover, and mutation that replaces, inserts or deletes a gene. Individuals that duplicate another's outputs are penalised, which keeps the population diverse. The winning sequence is then shortened and written out as one helper predicate per gene. A seed gives the same run on every SWI-Prolog build, because the module uses its own random number generator.
 
@@ -256,7 +256,7 @@ Each proof lists the steps it used. The prover reports `not_proved` rather than 
 
 - [`docs/io_synth_examples.md`](docs/io_synth_examples.md): worked input/output → program examples, the hand-over to `fold.pl`, and how this differs from Popper and Aleph.
 - [`docs/scope.md`](docs/scope.md): what is hardwired, and why S2A2 does not find algorithms from first principles.
-- [`docs/mnns_s2a_vs_s2a2.md`](docs/mnns_s2a_vs_s2a2.md): the `s2a/4` in mnns compared with S2A2's `io_synth`, run on the same 12 tasks (`docs/compare_mnns_s2a.pl`).
+- [`docs/mnns_s2a_vs_s2a2.md`](docs/mnns_s2a_vs_s2a2.md): the `s2a/4` in mnns compared with S2A2's `io_synth`, run on the same 12 tasks (`docs/compare_mnns_s2a.pl`): mnns solves 4, `io_synth` all 12.
 
 ## Files
 
@@ -277,7 +277,7 @@ Each proof lists the steps it used. The prover reports `not_proved` rather than 
 | `prolog/io_synth.pl` | nested predicates from input/output: signals, top-down propagation, observational equivalence, types, anti-unification, genetic algorithm, active learning, hand-over to `fold.pl` |
 | `prolog/io_proof.pl` | proves a program found from examples equal to a reference program, for every input of the declared types |
 | `prolog/io_synth_refs.pl` | the reference programs, written by hand |
-| `prolog/io_synth_tests.pl` | 46 tests for `io_synth.pl` and `io_proof.pl` |
+| `prolog/io_synth_tests.pl` | 50 tests for `io_synth.pl` and `io_proof.pl` |
 | `prolog/io_synth_examples.pl` | hierarchies from examples with proofs, the reductions measured, the genetic algorithm, active learning, input/output to algorithm, refusals (writes `results/io_synth.txt`) |
 
 ## Run
