@@ -35,6 +35,8 @@
                  generalises the consumer's other arguments into an accumulator
       tuple      two recursive calls on related arguments (N and s(N)) get a definition that
                  computes both results together
+      fuse       the recursive call and the one literal that consumes its result get one
+                 definition, unfolded on the consumer's case argument (flatten without append)
     Each searches by iterative deepening for unfold/lemma/merge/fold steps until every
     step clause of the new predicate calls only new predicates and builtins.
 
@@ -234,7 +236,7 @@ step_op(_, _, C, C1, merge) :- merge_step(C, C1, merge).
 def_keys(Defs, Ks) :- findall(K, ( member(def(H, _), Defs), key(H, K) ), Ks).
 
 % ---------------------------------------------------------------- strategies
-strategies([deforest, accumulate, tuple]).
+strategies([deforest, accumulate, tuple, fuse]).
 
 % eureka(+Strategy, +Spec, +Target, -Def, -Case, -Trace): the definition to transform and the
 % argument of its head that holds the induction variable
@@ -271,6 +273,23 @@ eureka(tuple, Spec, Target, DH-Rs, 1, [eureka(tuple, DH-Rs)]) :-
     \+ ( nth1(P, As, A), nth1(Q, As, A2), P < Q, A =@= A2 ),
     term_variables(Rs, RV), vsub(RV, [V], Outs),
     Target = TN/_, atom_concat(TN, '_tup', DN), DH =.. [DN, V|Outs].
+
+% fuse: the recursive call R and the one literal C that consumes its result become one
+% predicate, d(X, ...) :- R, C, unfolded on C's case argument X, a variable of the head that R
+% does not use. For flat2([L|Ls], F) :- flat2(Ls, F0), app(L, F0, F) this is
+% flat2_fuse(L, Ls, F) :- flat2(Ls, F0), app(L, F0, F): the [] case calls flat2 again and the
+% [X|Xs] case folds back, so app and the intermediate list F0 disappear.
+eureka(fuse, Spec, Target, DH-DB, 1, [eureka(fuse, DH-DB)]) :-
+    clauses_of(Spec, Target, TCs), member(H-B, TCs), B = [_, _],
+    member(R, B), user_lit(R), key(R, Target),
+    member(C, B), C \== R, user_lit(C), \+ key(C, Target), key(C, KC), case_pos(Spec, KC, CI),
+    arg(CI, C, X), var(X), term_variables(H, HV), vmember(X, HV),
+    term_variables(R, RV), \+ vmember(X, RV),
+    term_variables(C, CV), member(O, RV), vmember(O, CV), \+ vmember(O, HV), !,
+    term_variables([R, C], BV), include({HV}/[V]>>vmember(V, HV), BV, Iface0),
+    exclude(==(X), Iface0, Rest), Iface = [X|Rest],
+    Target = TN/_, atom_concat(TN, '_fuse', DN), DH0 =.. [DN|Iface],
+    copy_term(DH0-[R, C], DH-DB).                  % the definition shares no variable with Spec
 
 % generalise the consumers: every argument (inside is/2, every subterm of the expression)
 % that does not contain an output of the recursive call becomes a fresh variable
@@ -484,10 +503,12 @@ refute_lemma(Spec, lemma(_, L0, R0), Input) :-
 total(P, K, TM) :- total(P, K, TM, _).
 total(P, K, TM, P1) :-
     b_setval(fold_order, []), b_setval(fold_num, int),
-    total_(P, K, TM, []), !,
+    total_(P, K, TM, [], []), !,
     b_getval(fold_order, Ord), reorder_(P, Ord, [], P1).
 
-total_(P, K, TM, Stack) :-
+% total_(+P, +K, +Modes, +Sub, +Stack): Sub lists the argument positions of K that hold a
+% proper subterm of the caller's measured argument; Stack holds frame(K, Modes, M, Sub)
+total_(P, K, TM, Sub, Stack) :-
     clauses_of(P, K, Cs), Cs \== [],
     findall(J, nth1(J, TM, in(_)), InJs),
     findall(T, member(in(T), TM), InTs),
@@ -497,7 +518,7 @@ total_(P, K, TM, Stack) :-
     measure(Cs, K, TM, M),
     % a loop, not forall/2: forall would undo the recorded body orders
     length(Cs, NC), ( NC =:= 0 -> Ixs = [] ; numlist(1, NC, Ixs) ),
-    maplist({P, K, TM, M, Stack}/[Ix, C]>>clause_total(P, K, TM, M, [K|Stack], Ix, C), Ixs, Cs).
+    maplist({P, K, TM, M, Sub, Stack}/[Ix, C]>>clause_total(P, K, TM, M, [frame(K, TM, M, Sub)|Stack], Ix, C), Ixs, Cs).
 
 linear(Row) :- term_variables(Row, Vs), length(Vs, N), aggregate_all(count, ( sub_term(V, Row), var(V) ), N).
 
@@ -527,7 +548,7 @@ clause_total(P, K, TM, M, Stack, Ix, H-B) :-
     head_env(H, TM, Env0, Bound0),
     length(B, N), ( N =:= 0 -> Is = [] ; numlist(1, N, Is) ), permutation(Is, PIs),
     maplist({B}/[I, G]>>nth1(I, B, G), PIs, BP),
-    body_total(BP, P, K, TM, M, Stack, Env0, Bound0, Bound), !,
+    body_total(BP, H, P, K, TM, M, Stack, Env0, Bound0, Bound), !,
     forall(( nth1(J, TM, out), arg(J, H, A) ), ( term_variables(A, AV), forall(member(V, AV), vmember(V, Bound)) )),
     b_getval(fold_order, O0), b_setval(fold_order, [K-Ix-PIs|O0]).
 
@@ -542,8 +563,8 @@ bind_types(A, _, E0, E) :- term_variables(A, Vs), foldl([V, Ea, [V-any|Ea]]>>tru
 
 env_type(Env, V, T) :- member(W-T0, Env), W == V, !, T = T0.
 
-body_total([], _, _, _, _, _, _, Bound, Bound).
-body_total([L|Ls], P, K, TM, M, Stack, Env0, Bound0, Bound) :-
+body_total([], _, _, _, _, _, _, _, Bound, Bound).
+body_total([L|Ls], H, P, K, TM, M, Stack, Env0, Bound0, Bound) :-
     (   L = (X is E)
     ->  var(X), \+ vmember(X, Bound0),
         term_variables(E, EV),
@@ -557,12 +578,32 @@ body_total([L|Ls], P, K, TM, M, Stack, Env0, Bound0, Bound) :-
         mode_args(Args, QTM, out, Outs),
         maplist(var, Outs), sort(Outs, SO), length(SO, NO), length(Outs, NO),
         (   Q == K -> M \== none, maplist(mode_le, QTM, TM)
-        ;   \+ memberchk(Q, Stack), total_(P, Q, QTM, Stack) ),
+        ;   back_edge(P, H, K, Q, Args, QTM, Stack) -> true
+        ;   \+ memberchk(frame(Q, _, _, _), Stack),
+            sub_positions(H, TM, Args, Sub), total_(P, Q, QTM, Sub, Stack) ),
         out_types(QTM, Args, 1, P, Q, OTs),          % (no findall: it would copy the variables)
         append(OTs, Env0, Env1),
         term_variables(L, LV), append(LV, Bound0, Bound1)
     ),
-    body_total(Ls, P, K, TM, M, Stack, Env1, Bound1, Bound).
+    body_total(Ls, H, P, K, TM, M, Stack, Env1, Bound1, Bound).
+
+% sub_positions(+Head, +Modes, +CallArgs, -Sub): pairs J-I where the call's argument J is a
+% variable that is a proper subterm of the head's input argument I
+sub_positions(H, TM, Args, Sub) :-
+    findall(J-I, ( nth1(I, TM, in(_)), arg(I, H, HA), nonvar(HA),
+                   nth1(J, Args, A), var(A), sub_term(S, HA), S == A ), Sub).
+
+% back_edge: K was called from Q with its argument Pp a proper subterm of Q's input argument
+% I; K's own recursive calls keep Pp unchanged; and this call of Q passes K's argument Pp at
+% I. Then the pair (size of Q's argument I, K's measure) decreases lexicographically around
+% the cycle Q -> K -> ... -> K -> Q, so Q may be assumed total here (well-founded induction),
+% at modes no more instantiated than those Q is being proved for.
+back_edge(P, H, K, Q, Args, QTM, [frame(K, _, _, SubK), frame(Q, TMQ, _, _)|_]) :-
+    member(Pp-I, SubK), nth1(I, Args, A), var(A), arg(Pp, H, HP), HP == A,
+    preserved(P, K, Pp), maplist(mode_le, QTM, TMQ).
+preserved(P, K, Pp) :-
+    forall(( member(H-B, P), key(H, K), member(G, B), user_lit(G), key(G, K) ),
+           ( arg(Pp, H, X), arg(Pp, G, Y), var(X), X == Y )).
 
 out_types([], [], _, _, _, []).
 out_types([M|Ms], [A|As], J, P, Q, OTs) :- J1 is J + 1,

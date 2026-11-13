@@ -2094,14 +2094,14 @@ both run on every input of the pool: equal_on(1555)
 ref_dropmax([], []).
 ref_dropmax([A|B], C) :-
     max_list([A|B], D),
-    below([A|B], D, C).
-below([], _, []).
-below([A|B], C, D) :-
-    (   A<C
-    ->  D=[A|E]
-    ;   D=E
+    del_eq([A|B], D, C).
+del_eq([], _, []).
+del_eq([A|B], C, D) :-
+    (   A==C
+    ->  D=E
+    ;   D=[A|E]
     ),
-    below(B, C, E).
+    del_eq(B, C, E).
 
 ?- show_synth(dropmax, [[3,1,2]-[1,2],[7,9,8]-[7,8],[5,6,4]-[5,4]], [], flat).
 ```
@@ -2133,7 +2133,12 @@ candidates built: 4407; dropped as observationally equivalent: 3840; arguments r
 proof against the reference ref_dropmax/2:
     proved for every input of the declared types:
       unfold dropmax_test/2 (one clause, not recursive)
-      dropmax_sel/3 = below/3 by induction on argument 1
+      at the call, every element of argument 1 is at most argument 2 (library fact about max_list/2), and the tail keeps it
+      tests compared on integers that satisfy the invariant
+      tests compared in normal form
+      == and \== on integers read as =:= and =\=
+      if-then-else with the test negated and the branches swapped
+      dropmax_sel/3 = del_eq/3 by induction on argument 1, for inputs where every element of argument 1 is at most argument 2
       dropmax/2 = ref_dropmax/2 clause by clause
 both run on every input of the pool: equal_on(1555)
 ```
@@ -2508,14 +2513,14 @@ ref_dropmax_each([A|B], [C|D]) :-
 drop_max([], []).
 drop_max([A|B], C) :-
     max_list([A|B], D),
-    below([A|B], D, C).
-below([], _, []).
-below([A|B], C, D) :-
-    (   A<C
-    ->  D=[A|E]
-    ;   D=E
+    del_eq([A|B], D, C).
+del_eq([], _, []).
+del_eq([A|B], C, D) :-
+    (   A==C
+    ->  D=E
+    ;   D=[A|E]
     ),
-    below(B, C, E).
+    del_eq(B, C, E).
 
 ?- show_synth(dropmax_each, [[[1,3,5],[5,3,2]]-[[1,3],[3,2]],[[7,9],[4]]-[[7],[]]], [], nested).
 ```
@@ -2551,7 +2556,12 @@ candidates built: 4917; dropped as observationally equivalent: 4138; arguments r
 proof against the reference ref_dropmax_each/2:
     proved for every input of the declared types:
       unfold dropmax_each_el_test/2 (one clause, not recursive)
-      dropmax_each_el_sel/3 = below/3 by induction on argument 1
+      at the call, every element of argument 1 is at most argument 2 (library fact about max_list/2), and the tail keeps it
+      tests compared on integers that satisfy the invariant
+      tests compared in normal form
+      == and \== on integers read as =:= and =\=
+      if-then-else with the test negated and the branches swapped
+      dropmax_each_el_sel/3 = del_eq/3 by induction on argument 1, for inputs where every element of argument 1 is at most argument 2
       dropmax_each_el/2 = drop_max/2 clause by clause
       dropmax_each/2 = ref_dropmax_each/2 by induction on argument 1
 both run on every input of the pool: equal_on(463)
@@ -5343,14 +5353,14 @@ proof against the reference ref_dropmin/2:
 ref_dropmax([], []).
 ref_dropmax([A|B], C) :-
     max_list([A|B], D),
-    below([A|B], D, C).
-below([], _, []).
-below([A|B], C, D) :-
-    (   A<C
-    ->  D=[A|E]
-    ;   D=E
+    del_eq([A|B], D, C).
+del_eq([], _, []).
+del_eq([A|B], C, D) :-
+    (   A==C
+    ->  D=E
+    ;   D=[A|E]
     ),
-    below(B, C, E).
+    del_eq(B, C, E).
 
 ?- show_active(dropmax, small, [initial([[3,1,2]])]).
 ```
@@ -5379,7 +5389,12 @@ program:
 proof against the reference ref_dropmax/2:
     proved for every input of the declared types:
       unfold dropmax_test/2 (one clause, not recursive)
-      dropmax_sel/3 = below/3 by induction on argument 1
+      at the call, every element of argument 1 is at most argument 2 (library fact about max_list/2), and the tail keeps it
+      tests compared on integers that satisfy the invariant
+      tests compared in normal form
+      == and \== on integers read as =:= and =\=
+      if-then-else with the test negated and the branches swapped
+      dropmax_sel/3 = del_eq/3 by induction on argument 1, for inputs where every element of argument 1 is at most argument 2
       dropmax/2 = ref_dropmax/2 clause by clause
 ```
 
@@ -6734,7 +6749,14 @@ program found:
 proof against the reference ref_flat2/2:
     proved for every input of the declared types:
       flat2/2 = ref_flat2/2 by induction on argument 1
-no derivation: fold.pl's strategies do not apply to this specification
+fold.pl derives, by fuse (lemmas []):
+    flat2([],[]).
+    flat2([A|B],C) :- flat2_fuse(A,B,C).
+    flat2_fuse([],A,B) :- flat2(A,B).
+    flat2_fuse([A|B],C,[A|D]) :- flat2_fuse(B,C,D).
+total: yes; specification functional: yes; typed answers: yes
+so the derived program equals the specification on every input of the declared types
+bounded check: equal_on(3616)
 ```
 
 ## 194. twice the length

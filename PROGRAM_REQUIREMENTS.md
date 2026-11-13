@@ -30,7 +30,7 @@ Learn an optimisation algorithm (a list of rewrite rules with conditions) from t
 | R20 | An independent bounded check that compares two programs on every input up to a size and returns a counter-example | done (`bounded_equal/7`) |
 | R21 | Data types beyond lists: declared constructors, pattern-matrix coverage, structural recursion on any argument, inferred argument types | done (`set_types/1`; trees and naturals) |
 | R22 | Arithmetic: `is/2` and comparisons in programs, integer axioms used only on integers | done (sum and length with accumulators) |
-| R23 | More than one eureka strategy | done: deforest, accumulate (with the tail-call condition), tuple (with merge) |
+| R23 | More than one eureka strategy | done: deforest, accumulate (with the tail-call condition), tuple (with merge), fuse |
 | R24 | Lemma discovery: conjecture lemmas from stuck clauses, prove or refute them, retry | done (`discover_lemmas/4`; every example starts from an empty database) |
 | R25 | Learn which strategy to try first | done (`learn_strategies/2`, leave-one-out: 9 attempts against 12) |
 | R26 | Equality in every mode, not only the one checked | done where the specification answers only typed inputs (`slot_type/4`: equal least models) |
@@ -42,6 +42,8 @@ Learn an optimisation algorithm (a list of rewrite rules with conditions) from t
 | R32 | Hand a synthesised program to spec to algorithm | done (`to_fold_spec/3`; sum, length and reverse from examples to accumulator programs, proved) |
 | R33 | Prove each program found from examples equal to a reference program for every input of the declared types | done (`io_proof.pl`: unfolding, induction on lists, lemmas, polynomial arithmetic, test normal forms, residues; 70/70 hierarchies, 20/20 active, 15/15 to-algorithm, 12/20 genetic proved) |
 | R34 | Accumulate for `S is S1 + f(H)`, and sums not written as `S1 + Rest` | done (`fold.pl` evaluates the start value of the accumulator and reorders sums; `max_assoc` axiom; 14 of 15 to-algorithm derivations proved) |
+| R35 | Derive flatten of a list of lists | done (`fuse` strategy: the recursive call and its consumer become one predicate; `total/3` handles the two-predicate cycle with a lexicographic measure; all 15 to-algorithm derivations proved) |
+| R36 | Prove "drop the maximum" against the natural reference (`X == M` removed) | done (`io_proof.pl` invariant from `max_list/2`: under `X =< M`, `X < M` holds exactly when `X =\= M`) |
 
 ## Results (`results/`)
 
