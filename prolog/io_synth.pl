@@ -321,6 +321,7 @@ synth(Name, Exs, Opts, Program, report(Tree, Signals, Stats)) :-
     (   once(synth_nd(Name, Exs, Opts, Program, Tree)) -> true
     ;   option_or(ga(GA), Opts, true), GA == true,
         ga_synth(Name, Exs, Opts, Program, ga_report(Gens, Genome)),
+        run_all(Program, Name, Exs, ok),          % the emitted program, not just the genome
         Tree = node(Name, ga(Genome, generations(Gens)), [])
     ),
     read_stats(Stats).
@@ -328,7 +329,8 @@ synth(Name, Exs, Opts, Program, report(Tree, Signals, Stats)) :-
 % synth_nd(+Name, +Examples, +Opts, -Program, -Tree): each answer reproduces every example
 synth_nd(Name, Exs, Opts, Program, Tree) :-
     option_or(depth(D), Opts, 3),
-    hyp(D, Name, Exs, Opts, Program, Tree),
+    hyp(D, Name, Exs, Opts, Program0, Tree),
+    resolve_lib(Program0, Program),
     run_all(Program, Name, Exs, ok).
 
 % hyp(+Depth, +Name, +Examples, +Opts, -Clauses, -Tree), in order of cost
@@ -530,17 +532,32 @@ arith_term(mul, [A, B], A * B).
 arith_term(max, [A, B], max(A, B)).
 arith_term(min, [A, B], min(A, B)).
 
-goal_of(sum, [A], V, sum_list(A, V)).
-goal_of(maxl, [A], V, max_list(A, V)).
-goal_of(minl, [A], V, min_list(A, V)).
-goal_of(len, [A], V, length(A, V)).
+goal_of(sum, [A], V, lib(sum_list(A, V))).
+goal_of(maxl, [A], V, lib(max_list(A, V))).
+goal_of(minl, [A], V, lib(min_list(A, V))).
+goal_of(len, [A], V, lib(length(A, V))).
 goal_of(head, [A], V, A = [V|_]).
-goal_of(last, [A], V, last(A, V)).
-goal_of(rev, [A], V, reverse(A, V)).
-goal_of(msort, [A], V, msort(A, V)).
-goal_of(sort, [A], V, sort(A, V)).
+goal_of(last, [A], V, lib(last(A, V))).
+goal_of(rev, [A], V, lib(reverse(A, V))).
+goal_of(msort, [A], V, lib(msort(A, V))).
+goal_of(sort, [A], V, lib(sort(A, V))).
 goal_of(tail, [A], V, A = [_|V]).
-goal_of(app, [A, B], V, append(A, B, V)).
+goal_of(app, [A, B], V, lib(append(A, B, V))).
+
+% resolve_lib(+Clauses, -Clauses1): library calls are emitted as lib(G). They become G, or
+% Module:G where the program itself defines a predicate with G's name and arity (a task named
+% reverse must not call itself where it means lists:reverse/2)
+resolve_lib(Cs, Cs1) :-
+    findall(K, ( member(C, Cs), ( C = (H :- _) -> true ; H = C ), functor(H, N, A), K = N/A ), Ks),
+    maplist(resolve_clause(Ks), Cs, Cs1).
+resolve_clause(Ks, (H :- B), (H :- B1)) :- !, resolve_body(Ks, B, B1).
+resolve_clause(_, H, H).
+resolve_body(Ks, (A, B), (A1, B1)) :- !, resolve_body(Ks, A, A1), resolve_body(Ks, B, B1).
+resolve_body(Ks, (C -> T ; E), (C1 -> T1 ; E1)) :- !, resolve_body(Ks, C, C1), resolve_body(Ks, T, T1), resolve_body(Ks, E, E1).
+resolve_body(Ks, lib(G), G1) :- !, functor(G, N, A), ( memberchk(N/A, Ks) -> lib_module(N, M), G1 = M:G ; G1 = G ).
+resolve_body(_, G, G).
+lib_module(N, system) :- memberchk(N, [msort, sort, length]), !.
+lib_module(_, lists).
 
 % context goals for hoisted expressions over the list L
 ctx_goals([], _, [], []).
@@ -648,10 +665,12 @@ ga_synth(Name, Exs, Opts, Program, ga_report(Gen, Genome)) :-
     option_or(population(PN), Opts, 80), option_or(generations(GMax), Opts, 150),
     pairs_keys_values(Exs, Ins, _), maplist(vtype, Ins, ITs), join_types(ITs, IT),
     genes(Opts, Genes),
+    once(( member(G0, Genes), well_typed([G0], IT, _) )),   % no gene takes this input: fail at once
     length(Pop0, PN), maplist(random_genome(Genes, IT), Pop0),
     ga_loop(0, GMax, Genes, IT, Exs, Pop0, Gen, Best),
     minimise(Best, IT, Exs, Genome),
-    emit_genome(Name, Genome, Program).
+    emit_genome(Name, Genome, Program0),
+    resolve_lib(Program0, Program).
 
 genes(Opts, Genes) :-
     option_or(exclude(Ex), Opts, []),

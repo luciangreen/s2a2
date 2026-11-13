@@ -252,6 +252,12 @@ Each proof lists the steps it used. The prover reports `not_proved` rather than 
 
 **What is still open.** The prover has no algebraic laws over whole lists, such as map and filter commuting or Σ2x = 2Σx, and no facts about library predicates. The library of components is small. Predicates have one input and one output. Distinguishing inputs come from a finite pool, not a solver. Checking which predicate in a hierarchy acts first (an invalid outer container holding valid inner items) is not done. The genetic algorithm searches only straight-line pipelines.
 
+## Further reading
+
+- [`docs/io_synth_examples.md`](docs/io_synth_examples.md): worked input/output → program examples, the hand-over to `fold.pl`, and how this differs from Popper and Aleph.
+- [`docs/scope.md`](docs/scope.md): what is hardwired, and why S2A2 does not find algorithms from first principles.
+- [`docs/mnns_s2a_vs_s2a2.md`](docs/mnns_s2a_vs_s2a2.md): the `s2a/4` in mnns compared with S2A2's `io_synth`, run on the same 12 tasks (`docs/compare_mnns_s2a.pl`).
+
 ## Files
 
 | File | Contents |
@@ -271,7 +277,7 @@ Each proof lists the steps it used. The prover reports `not_proved` rather than 
 | `prolog/io_synth.pl` | nested predicates from input/output: signals, top-down propagation, observational equivalence, types, anti-unification, genetic algorithm, active learning, hand-over to `fold.pl` |
 | `prolog/io_proof.pl` | proves a program found from examples equal to a reference program, for every input of the declared types |
 | `prolog/io_synth_refs.pl` | the reference programs, written by hand |
-| `prolog/io_synth_tests.pl` | 44 tests for `io_synth.pl` and `io_proof.pl` |
+| `prolog/io_synth_tests.pl` | 46 tests for `io_synth.pl` and `io_proof.pl` |
 | `prolog/io_synth_examples.pl` | hierarchies from examples with proofs, the reductions measured, the genetic algorithm, active learning, input/output to algorithm, refusals (writes `results/io_synth.txt`) |
 
 ## Run

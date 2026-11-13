@@ -118,6 +118,11 @@ main :-
       ( P = [d([],[]), (d([X|Xs],R) :- max_list([X|Xs],M), s([X|Xs],M,R)), s([],_,[]), (s([Y|Ys],M2,R2) :- (Y < M2 -> R2=[Y|R3] ; R2=R3), M3 is M2-1, s(Ys,M3,R3))],
         Q = [e([],[]), (e([X1|Xs1],Rq) :- max_list([X1|Xs1],Mq), t([X1|Xs1],Mq,Rq)), t([],_,[]), (t([Z|Zs],Mt,Rt) :- (Z == Mt -> Rt=Rt1 ; Rt=[Z|Rt1]), Mt1 is Mt-1, t(Zs,Mt1,Rt1))],
         prove_equal(P, d, Q, e, [list(int), any], not_proved) )),
+    t(task_named_like_a_library_predicate_calls_the_library,
+      ( synth(reverse, [[1,2,3]-[3,2,1], [4,5,6,7]-[7,6,5,4]], [], P, report(node(_, expression(_), _), _, _)),
+        memberchk((reverse(_, _) :- lists:reverse(_, _)), P), run_program(P, reverse, [8,9], [9,8]) )),
+    t(ga_fails_at_once_when_no_gene_takes_the_input,
+      ( call_with_time_limit(30, \+ ga_synth(p, [box(red,[5,6])-[5,6], box(blue,[7,8])-[7,8]], [], _, _)) )),
     t(pools_are_shortest_first, ( int_lists(2, 0, 1, [[], [0], [1], [0,0]|_]) )),
     (   failed(_) -> format("FAILED~n"), halt(1) ; format("all io_synth tests passed~n"), halt(0) ).
 
