@@ -39,7 +39,7 @@
     step clause of the new predicate calls only new predicates and builtins.
 
     DATABASE: a lemma about user predicates is admitted only after prove_lemma/3 proves it
-    (both sides deforested to the same program). Arithmetic facts (associativity of + and *)
+    (both sides deforested to the same program). Arithmetic facts (associativity of +, * and max)
     are axioms of the integers.
     DISCOVERY: when a strategy gets stuck, discover_lemmas/4 conjectures lemmas from the
     stuck clauses (associativity and commutativity of a predicate that chains with itself,
@@ -309,9 +309,37 @@ unfolded(Spec, H-B, Case, J, Cs2) :-
 spec_to_algorithm(Spec, Target, Lemmas, Program, Report) :-
     strategies(Order), spec_to_algorithm(Spec, Target, Lemmas, Order, Program, Report).
 % Report = report(Strategy, Trace, LemmasUsed, Attempts, Discovered)
-spec_to_algorithm(Spec, Target, Lemmas, Order, Program, report(S, Trace, Used, Attempts, Disc)) :-
+spec_to_algorithm(Spec0, Target, Lemmas, Order, Program, report(S, Trace, Used, Attempts, Disc)) :-
+    maplist(sum_first(Target), Spec0, Spec),
     try_order(Order, Spec, Target, Lemmas, 0, S, Program, Trace, Attempts, Disc),
     uses_lemmas(Trace, Used).
+
+% sum_first(+Target, +Clause, -Clause1): in a clause of the target, S is E, where E is a sum
+% (with + and -) in which the result R of a recursive call appears once with sign +, becomes
+% S is R + Rest, so the accumulate strategy can generalise Rest. On integers this only
+% reorders a sum (associativity and commutativity of +). A clause already of that form, or
+% not of this kind, is unchanged.
+sum_first(Target, H-B, H-B1) :-
+    key(H, Target), !,
+    foldl(rec_result(Target), B, [], Rs),          % not findall: it would copy the variables
+    maplist(sum_first_lit(Rs), B, B1).
+sum_first(_, C, C).
+rec_result(Target, G, Rs, Rs1) :-
+    (   user_lit(G), key(G, Target), G =.. [_|As], last(As, V), var(V) -> Rs1 = [V|Rs] ; Rs1 = Rs ).
+sum_first_lit(Rs, X is E, X is E1) :-
+    \+ ( E = R0 + _, var(R0), vmember(R0, Rs) ),
+    summands(E, +, Ts), select(+(R), Ts, Rest), var(R), vmember(R, Rs), Rest \== [],
+    \+ ( member(_-T, Rest), sub_term(Y, T), var(Y), vmember(Y, Rs) ), !,
+    rest_expr(Rest, RE), E1 = R + RE.
+sum_first_lit(_, G, G).
+summands(E, S, Ts) :- nonvar(E), E = A + B, !, summands(A, S, TA), summands(B, S, TB), append(TA, TB, Ts).
+summands(E, S, Ts) :- nonvar(E), E = A - B, !, summands(A, S, TA), flip(S, S1), summands(B, S1, TB), append(TA, TB, Ts).
+summands(E, S, [T]) :- T =.. [S, E].
+flip(+, -). flip(-, +).
+rest_expr([T], E) :- !, sign_term(T, E).
+rest_expr([T|Ts], E) :- rest_expr(Ts, E0), ( T = +(X) -> E = X + E0 ; T = -(X), E = E0 - X ).
+sign_term(+(X), X).
+sign_term(-(X), -X).
 
 try_order([S|Ss], Spec, Target, Lemmas, N0, Sf, Program, Trace, N, Disc) :-
     N1 is N0 + 1,
@@ -334,12 +362,26 @@ derive(S, Spec, Target, Lemmas, Program, Trace) :-
     deforest_on(Spec1, DH-DB, Case, Kind, Lemmas, Derived, Tr1), !,
     (   S == deforest -> Program0 = Derived, Tr2 = []
     ;   clauses_of(Spec, Target, TCs),
-        maplist(fold_all([def(DH, DB)]), TCs, TCs1),
+        maplist(fold_all([def(DH, DB)]), TCs, TCs0),
+        maplist(evaluate_call_args(DH), TCs0, TCs1),
         append(TCs1, Derived, Program0), Tr2 = [fold_target(TCs1)] ),
     reachable([Target], Program0, Spec, Program),
     append([Tr0, Tr1, Tr2], Trace).
 
 eureka_kind(DH, Kind) :- functor(DH, DN, _), catch(nb_getval(fold_kind, DN-Kind), _, fail).
+
+% evaluate_call_args(+DefHead, +Clause, -Clause1): folding can leave an arithmetic expression,
+% such as H*H, as an argument of the call to the new predicate (the accumulator's start
+% value). Compute it first with is/2, so the accumulator is a number: X is E binds X to the
+% value of E, so this keeps the least model on numbers.
+evaluate_call_args(DH, H-B, H-B1) :- functor(DH, DN, DA), foldl(eval_lit(DN/DA), B, [], B0), B1 = B0.
+eval_lit(K, G, Acc, Acc1) :-
+    (   key(G, K)
+    ->  G =.. [F|As], foldl(eval_arg, As, As1, [], Pre), G1 =.. [F|As1], append([Acc, Pre, [G1]], Acc1)
+    ;   append(Acc, [G], Acc1) ).
+eval_arg(A, V, Pre, Pre1) :- arith_expr(A), !, append(Pre, [V is A], Pre1).
+eval_arg(A, A, Pre, Pre).
+arith_expr(E) :- compound(E), functor(E, F, N), memberchk(F/N, [(+)/2, (-)/2, (*)/2, (//)/2, (mod)/2, (-)/1, abs/1, max/2, min/2]).
 
 stuck(S, Spec, Target, Stuck) :-
     eureka(S, Spec, Target, DH-DB, Case, _),
@@ -394,6 +436,7 @@ variant_clause(H1-B1, H2-B2) :- length(B1, N), length(B2, N), permutation(B1, P)
 % axioms of integer arithmetic (properties of the integers, not proved here)
 axiom(plus_assoc, [S1 is X + Y, S is S1 + Z], [V is Y + Z, S is X + V], int).
 axiom(times_assoc, [S1 is X * Y, S is S1 * Z], [V is Y * Z, S is X * V], int).
+axiom(max_assoc, [S1 is max(X, Y), S is max(S1, Z)], [V is max(Y, Z), S is max(X, V)], int).
 
 % discover_lemmas(+Spec, +StuckClauses, +Known, -Found): Found holds proved(Lemma),
 % axiom(Axiom), refuted(Lemma, CounterExample) or unknown(Lemma) for each new conjecture
