@@ -123,6 +123,16 @@ main :-
         memberchk((reverse(_, _) :- lists:reverse(_, _)), P), run_program(P, reverse, [8,9], [9,8]) )),
     t(ga_fails_at_once_when_no_gene_takes_the_input,
       ( call_with_time_limit(30, \+ ga_synth(p, [box(red,[5,6])-[5,6], box(blue,[7,8])-[7,8]], [], _, _)) )),
+    t(polynomial_solved_exactly,
+      ( synth(c, [0-1, 1-2, 2-9, 3-28, 4-65], [ga(false)], P, report(node(c, polynomial([1,0,0,1]), []), _, _)),
+        run_program(P, c, 5, 126), run_program(P, c, -2, -7) )),
+    t(polynomial_needs_integer_coefficients,
+      ( \+ io_synth:polynomial([0-0, 1-0, 2-1, 3-3], _) )),
+    t(projection_through_compound_terms,
+      ( synth(p, [box(red,[5,6])-[5,6], box(blue,[7,8])-[7,8]], [], P, report(node(p, projection([2]), []), _, _)),
+        run_program(P, p, box(green, [1,2,3]), [1,2,3]), \+ run_program(P, p, bag(green, [1]), _) )),
+    t(projection_must_be_unique,
+      ( \+ io_synth:projection([p(1,1)-1, p(2,2)-2], _) )),
     t(pools_are_shortest_first, ( int_lists(2, 0, 1, [[], [0], [1], [0,0]|_]) )),
     (   failed(_) -> format("FAILED~n"), halt(1) ; format("all io_synth tests passed~n"), halt(0) ).
 

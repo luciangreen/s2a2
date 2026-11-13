@@ -26,11 +26,11 @@ Otherwise it returns `no_algorithm(Reason)`, or `ambiguous(Candidates)` when sev
 
 | task | mnns s2a/4 | held out | S2A2 io_synth | held out |
 | --- | --- | --- | --- | --- |
-| projection | s2a_input_address | yes | none | - |
+| projection | s2a_input_address | yes | projection | yes |
 | swap_pair | no_algorithm(no_generalization_candidate) | - | expression | yes |
 | affine | s2a_affine | yes | expression | yes |
 | quadratic | s2a_quadratic | yes | expression | yes |
-| cubic | s2a_cubic | yes | none | - |
+| cubic | s2a_cubic | yes | polynomial | yes |
 | reverse | no_algorithm(no_generalization_candidate) | - | expression | yes |
 | double_each | no_algorithm(no_generalization_candidate) | - | map | yes |
 | evens | no_algorithm(no_generalization_candidate) | - | filter | yes |
@@ -39,11 +39,13 @@ Otherwise it returns `no_algorithm(Reason)`, or `ambiguous(Candidates)` when sev
 | dropmin_each | no_algorithm(no_generalization_candidate) | - | map | yes |
 | inc_all | no_algorithm(no_generalization_candidate) | - | map | yes |
 
-mnns `s2a/4` solves 4 of the 12 and S2A2 solves 10. They overlap on two (affine, quadratic), and every program that either one returns passes its held-out inputs.
+mnns `s2a/4` solves 4 of the 12 and S2A2 solves all 12. Every program that either one returns passes its held-out inputs.
 
-- **mnns only:**
-  - **Projection.** S2A2 has no component that takes an argument out of a compound term.
-  - **Cubic.** S2A2's expressions stop at size 4, and its genetic algorithm has no cubic gene.
+- **Methods taken from mnns.** S2A2 at first solved 10, because it had no way to take an argument out of a compound term and its expressions stop at size 4 (so not a cubic). It now has mnns's two methods as hypotheses of its own:
+  - **projection:** a unique address whose subterm equals the output, giving `projection(box(_, A), A)`;
+  - **polynomial:** degree 1 to 3, solved exactly with integer coefficients, giving `cubic(A, B) :- B is A*A*A+1`.
+
+  Both are tried after a single expression, so list tasks are solved as before. Both are proved by `io_proof.pl` against a reference.
 - **S2A2 only:** everything with lists or recursion.
   - For the swap of a pair, S2A2 finds `reverse/2`.
   - The [README's S2A2 results](../README.md) give hierarchies such as drop-the-minimum-per-sublist, each proved equal to a reference program.
@@ -53,10 +55,10 @@ mnns `s2a/4` solves 4 of the 12 and S2A2 solves 10. They overlap on two (affine,
 
 | | mnns `s2a/4` | S2A2 `io_synth.pl` |
 | --- | --- | --- |
-| Hypotheses | address projection; integer polynomials of degree 1 to 3 | typed expressions; map, filter (plain, or using the whole list), templates by anti-unification, foldr; genetic pipelines |
+| Hypotheses | address projection; integer polynomials of degree 1 to 3 | typed expressions; the same projection and polynomials; map, filter (plain, or using the whole list), templates by anti-unification, foldr; genetic pipelines |
 | Recursion and lists | none | yes, including invented helper predicates, maps inside maps and filters inside maps |
-| Compound-term projection | yes | no |
-| Arithmetic | exact solving for degree ≤ 3 | enumeration up to size 4 (so `x³+1` is out of reach) |
+| Compound-term projection | yes | yes (the same method) |
+| Arithmetic | exact solving for degree ≤ 3 | enumeration up to size 4, then the same exact solving for degree ≤ 3 |
 | Several answers fit | `ambiguous(Candidates)` | smallest first; `active_synth/6` asks an oracle about a distinguishing input |
 | Proof | `proof([])`: the examples are reproduced; nothing else is proved | `io_proof.pl` proves the program equal to a reference program for every input of the declared types; `fold.pl` proves faster versions equal |
 | Table fallback | with `allow_table(true)` | none |
@@ -65,8 +67,8 @@ mnns `s2a/4` solves 4 of the 12 and S2A2 solves 10. They overlap on two (affine,
 
 ## What follows
 
-- **They are complementary.** mnns's address projection and exact polynomial solving are small, precise methods that S2A2 lacks. S2A2's structural search, proofs and optimisation cover the recursive list programs that mnns's own requirement R4.1.2 asks for and does not yet meet.
-- **Bringing them together** is item 5 of S2A2's Work remaining ("replace s2a in mnns"): an adapter from mnns specs and its `mnn_program/5` IR to `io_synth`. Address projection and polynomial fitting could also be added to `io_synth` as two more hypotheses, ahead of the genetic algorithm.
+- **They were complementary; S2A2 now covers both.** mnns's address projection and exact polynomial solving are now hypotheses of `io_synth`. S2A2's structural search, proofs and optimisation cover the recursive list programs that mnns's own requirement R4.1.2 asks for and does not yet meet.
+- **mnns can call S2A2.** mnns's `prolog/s2a/s2a2_bridge.pl` (`mnn_s2a2:s2a2/4`) takes an mnns spec and runs mnns's own `s2a/4` first. When that returns `no_algorithm`, it calls S2A2's `io_synth` and returns the program in mnns's `mnn_program/5` IR. This is item 5 of S2A2's Work remaining.
 - **Bugs found by this comparison.** Running these tasks found two bugs in `io_synth.pl`, both now fixed and tested:
   - A task named like a library predicate (`reverse`) emitted `reverse(A,B) :- reverse(A,B)`. Library calls are now module-qualified when they clash.
   - The genetic algorithm hung when no gene accepts the input type (`box(...)`). It now fails at once, and its emitted program is checked on every example before it is returned.

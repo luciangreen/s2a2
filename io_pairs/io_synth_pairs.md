@@ -5502,9 +5502,10 @@ ref_double([A|B], [C|D]) :-
 
 ```text
 pool: 259 inputs; the oracle runs the reference program
-query: distinguish([-1,-2]-[-2,-4],candidates(3))
+query: distinguish([]-[],candidates(2))
+query: distinguish([-1,-2]-[-2,-4],candidates(2))
 query: distinguish([-2,-1,-2]-[-4,-2,-4],candidates(2))
-rounds: 3; examples used: 3; final check: equal_on(259)
+rounds: 4; examples used: 4; final check: equal_on(259)
 program:
     double([], []).
     double([A|B], [C|D]) :-
@@ -5539,9 +5540,10 @@ ref_square([A|B], [C|D]) :-
 
 ```text
 pool: 259 inputs; the oracle runs the reference program
-query: distinguish([-2,-1]-[4,1],candidates(3))
-query: distinguish([-2,-2,-1]-[4,4,1],candidates(3))
-rounds: 3; examples used: 3; final check: equal_on(259)
+query: distinguish([-2]-[4],candidates(4))
+query: distinguish([-2,-1]-[4,1],candidates(2))
+query: distinguish([-2,-2,-1]-[4,4,1],candidates(2))
+rounds: 4; examples used: 4; final check: equal_on(259)
 program:
     square([], []).
     square([A|B], [C|D]) :-
@@ -5575,9 +5577,9 @@ ref_inc([A|B], [C|D]) :-
 
 ```text
 pool: 259 inputs; the oracle runs the reference program
-query: distinguish([-1,-2]-[0,-1],candidates(3))
-query: distinguish([-2,-2,-1]-[-1,-1,0],candidates(3))
-query: distinguish([-2,-2,-2]-[-1,-1,-1],candidates(3))
+query: distinguish([]-[],candidates(2))
+query: distinguish([-1,-2]-[0,-1],candidates(2))
+query: distinguish([-2,-2,-1]-[-1,-1,0],candidates(2))
 query: distinguish([-2,-1,-2]-[-1,0,-1],candidates(2))
 rounds: 5; examples used: 5; final check: equal_on(259)
 program:
@@ -5695,10 +5697,12 @@ ref_first_last([A|B], A-C) :-
 pool: 259 inputs; the oracle runs the reference program
 query: counter_example([-2]-(-2- -2))
 query: distinguish([-2,-1]-(-2- -1),candidates(4))
-query: distinguish([-2,-2]-(-2- -2),candidates(4))
-query: distinguish([-2,1]-(-2-1),candidates(4))
-query: distinguish([2,-2]-(2- -2),candidates(4))
-rounds: 6; examples used: 6; final check: equal_on(258)
+query: distinguish([-2,-2]-(-2- -2),candidates(3))
+query: distinguish([-2,1]-(-2-1),candidates(3))
+query: distinguish([1,-2]-(1- -2),candidates(3))
+query: distinguish([2]-(2-2),candidates(3))
+query: distinguish([1,-1]-(1- -1),candidates(2))
+rounds: 8; examples used: 8; final check: equal_on(258)
 program:
     first_last(A, B-C) :-
         first_last_1(A, B),
@@ -5910,8 +5914,9 @@ inc_row([A|B], [C|D]) :-
 
 ```text
 pool: 463 inputs; the oracle runs the reference program
-query: distinguish([[1,0]]-[[2,1]],candidates(3))
-rounds: 2; examples used: 2; final check: equal_on(463)
+query: distinguish([]-[],candidates(2))
+query: distinguish([[1,0]]-[[2,1]],candidates(2))
+rounds: 3; examples used: 3; final check: equal_on(463)
 program:
     inc_all([], []).
     inc_all([A|B], [C|D]) :-
@@ -5957,7 +5962,7 @@ evens_row([A|B], C) :-
 
 ```text
 pool: 463 inputs; the oracle runs the reference program
-query: distinguish([[2,0]]-[[2,0]],candidates(4))
+query: distinguish([[]]-[[]],candidates(3))
 rounds: 2; examples used: 2; final check: equal_on(463)
 program:
     evens_each([], []).

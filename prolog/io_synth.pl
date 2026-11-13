@@ -339,6 +339,12 @@ hyp(_, Name, Exs, _, [C], node(Name, constant(O), [])) :-
     C =.. [Name, _, O].
 hyp(_, Name, Exs, Opts, Cs, node(Name, expression(E), [])) :-
     leaf(Name, Exs, Opts, E, Cs).
+hyp(_, Name, Exs, _, [(H :- Y is E)], node(Name, polynomial(Coeffs), [])) :-
+    polynomial(Exs, Coeffs),
+    poly_expr(Coeffs, X, E), H =.. [Name, X, Y].
+hyp(_, Name, Exs, _, [H], node(Name, projection(Path), [])) :-
+    projection(Exs, Path),
+    Exs = [I0-_|_], pattern_at(I0, Path, Pat, Y), H =.. [Name, Pat, Y].
 hyp(D, Name, Exs, Opts, Cs, node(Name, map, [Sub])) :-
     D > 0, signals(Exs, Sg), memberchk(length_preserved, Sg),
     \+ forall(member(I-O, Exs), I == O),
@@ -368,6 +374,74 @@ hyp(D, Name, Exs, Opts, Cs, node(Name, template(GT), Subs)) :-
 hyp(_, Name, Exs, Opts, Cs, node(Name, foldr(Base, C), [])) :-
     signals(Exs, Sg), memberchk(in_type(list(_)), Sg),
     foldr_hyp(Name, Exs, Opts, Base, C, Cs).
+
+% ---------------------------------------------------------------- polynomial
+% polynomial(+Examples, -Coeffs): integer inputs and outputs fit exactly one polynomial of
+% degree 1 to 3 with integer coefficients, fixed by the first degree+1 distinct inputs and
+% checked on every example. Coeffs = [C0, C1, ..., Cd], lowest degree first.
+polynomial(Exs, Coeffs) :-
+    forall(member(I-O, Exs), ( integer(I), integer(O) )),
+    findall(I-O, member(I-O, Exs), Ps0), sort(1, @<, Ps0, Ps), length(Ps, N),
+    between(1, 3, D), N >= D + 1,
+    length(Pts, D), append([P0|Pts], _, Ps), Sel = [P0|Pts],
+    solve_poly(Sel, D, Coeffs),
+    last(Coeffs, Lead), Lead =\= 0,
+    forall(member(I-O, Exs), ( eval_coeffs(Coeffs, I, V), V =:= O )), !.
+
+% Cramer's rule on the Vandermonde system, with integer determinants; every coefficient
+% must come out an integer
+solve_poly(Pts, D, Coeffs) :-
+    D1 is D + 1, numlist(0, D, Ks),
+    findall(Row, ( member(X-_, Pts), findall(V, ( member(K, Ks), V is X ^ K ), Row) ), M),
+    findall(Y, member(_-Y, Pts), Ys),
+    det(M, Det), Det =\= 0,
+    findall(C, ( between(1, D1, J), replace_column(M, J, Ys, MJ), det(MJ, DJ),
+                 0 =:= DJ mod Det, C is DJ // Det ), Coeffs).
+replace_column([], _, [], []).
+replace_column([Row|Rows], J, [V|Vs], [Row1|Rows1]) :-
+    nth1(J, Row, _, Rest), nth1(J, Row1, V, Rest), replace_column(Rows, J, Vs, Rows1).
+det([[A]], A) :- !.
+det([Row|Rows], D) :- length(Row, N), numlist(1, N, Js), det_sum(Js, Row, Rows, 0, D).
+det_sum([], _, _, D, D).
+det_sum([J|Js], Row, Rows, D0, D) :-
+    nth1(J, Row, A), drop_column(Rows, J, Minor), det(Minor, DM),
+    D1 is D0 + (-1) ^ (J + 1) * A * DM, det_sum(Js, Row, Rows, D1, D).
+drop_column([], _, []).
+drop_column([R|Rs], J, [R1|Rs1]) :- nth1(J, R, _, R1), drop_column(Rs, J, Rs1).
+eval_coeffs(Cs, X, V) :- eval_coeffs(Cs, X, 0, 0, V).
+eval_coeffs([], _, _, V, V).
+eval_coeffs([C|Cs], X, K, A0, V) :- A1 is A0 + C * X ^ K, K1 is K + 1, eval_coeffs(Cs, X, K1, A1, V).
+
+% poly_expr(+Coeffs, ?X, -E): the polynomial as an expression in X, highest degree first,
+% without zero terms or unit coefficients
+poly_expr(Cs, X, E) :-
+    length(Cs, N), N1 is N - 1, numlist(0, N1, Ks), reverse(Ks, Desc),
+    findall(K-C, ( member(K, Desc), nth0(K, Cs, C), C =\= 0 ), Ts),
+    Ts = [T0|Rest], term_of(T0, X, E0, _), foldl(add_term(X), Rest, E0, E).
+add_term(X, K-C, E0, E) :- ( C < 0 -> C1 is -C, term_of(K-C1, X, T, _), E = E0 - T ; term_of(K-C, X, T, _), E = E0 + T ).
+term_of(0-C, _, C, c) :- !.
+term_of(K-C, X, T, m) :- mono(K, X, M), ( C =:= 1 -> T = M ; C =:= -1 -> T = -M ; T = C * M ).
+mono(1, X, X) :- !.
+mono(K, X, M * X) :- K1 is K - 1, mono(K1, X, M).
+
+% ---------------------------------------------------------------- projection
+% projection(+Examples, -Path): exactly one address (a list of argument positions, not the
+% whole input) holds a subterm equal to the output in every example, through the same
+% functors in every input; at least two distinct examples
+projection(Exs, Path) :-
+    sort(Exs, Ds), Ds = [_, _|_], Exs = [I0-_|_],
+    findall(P, ( address(I0, P), P \== [], forall(member(I-O, Exs), ( at_address(I, P, V), V == O, same_path(I0, I, P) )) ), Ps),
+    Ps = [Path].
+address(_, []).
+address(T, [K|P]) :- compound(T), functor(T, _, A), between(1, A, K), arg(K, T, S), address(S, P).
+at_address(T, [], T).
+at_address(T, [K|P], V) :- compound(T), arg(K, T, S), at_address(S, P, V).
+same_path(_, _, []).
+same_path(A, B, [K|P]) :- compound(A), compound(B), functor(A, F, N), functor(B, F, N), arg(K, A, SA), arg(K, B, SB), same_path(SA, SB, P).
+% pattern_at(+Input, +Path, -Pattern, ?Y): the input's functors along Path, Y at its end,
+% fresh variables everywhere else
+pattern_at(_, [], Y, Y).
+pattern_at(T, [K|P], Pat, Y) :- functor(T, F, N), functor(Pat, F, N), arg(K, T, S), arg(K, Pat, SP), pattern_at(S, P, SP, Y).
 
 fixed_length_outputs(Outs, Ins) :-
     maplist(is_list, Outs), maplist(length, Outs, [N|Ns]), maplist(==(N), Ns),
@@ -915,6 +989,8 @@ kind_atom(constant(O), A) :- format(atom(A), "constant ~q", [O]).
 kind_atom(expression(E), A) :- pp(E, P), format(atom(A), "expression ~w", [P]).
 kind_atom(expression_with_context(E), A) :- pp(E, P), format(atom(A), "expression on the element x and its list l: ~w", [P]).
 kind_atom(map, 'map: each element by the sub-predicate').
+kind_atom(polynomial(Cs), A) :- poly_expr(Cs, x, E), format(atom(A), "polynomial ~w, solved exactly", [E]).
+kind_atom(projection(P), A) :- format(atom(A), "projection of the input at address ~w", [P]).
 kind_atom(filter(K, T), A) :- pp(T, P), format(atom(A), "filter (~w): keep x when ~w", [K, P]).
 kind_atom(template(G), A) :- copy_term(G, G1), numbervars(G1, 0, _), format(atom(A), "template ~p from anti-unification of the outputs", [G1]).
 kind_atom(foldr(B, C), A) :- pp(C, P), format(atom(A), "foldr: [] gives ~q, [x|xs] gives ~w with r the result for xs", [B, P]).
