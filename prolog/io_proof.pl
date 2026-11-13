@@ -29,6 +29,11 @@
       flip        (C -> A ; B) is the same as (not C -> B ; A) when C is a test;
       lemma       a call is replaced by a call of a predicate already proved equal to it, on
                   the types it is called with;
+      invariant   a call P(L, M) made after max_list(L, M) (or min_list(L, M)) may assume that
+                  every element of L is at most (at least) M; the pair P = Q is then proved
+                  by induction for those inputs only: the tail of L keeps the invariant, and
+                  in a step clause the head element X satisfies X =< M (X >= M). Tests are
+                  then compared on the integers that satisfy it, by their thresholds;
       induction   a pair of predicates that both recurse on the tail of the same list
                   argument is proved by induction on that list: the induction hypothesis
                   replaces each recursive call on the tail.
@@ -48,10 +53,10 @@ prove_equal(P1, N1, P2, N2, Types, Result) :-
     length(Types, A),
     prepare(P1, Pr1, U1), prepare(P2, Pr2, U2),
     b_setval(io_proof_steps, []),
-    Ctx = ctx(Pr1, Pr2, []),
-    (   catch(call_with_inference_limit(once(prove_pair(N1/A, N2/A, Types, Ctx)), 20000000, R), _, fail),
+    Ctx = ctx(Pr1, Pr2, [], []),
+    (   catch(call_with_inference_limit(once(prove_pair(N1/A, N2/A, Types, none, Ctx)), 20000000, R), _, fail),
         R \== inference_limit_exceeded
-    ->  b_getval(io_proof_steps, S0), reverse(S0, S1), exclude([X]>>( X = proven(_, _, _) ), S1, S1a), dedup(S1a, S2),
+    ->  b_getval(io_proof_steps, S0), reverse(S0, S1), exclude([X]>>( X = proven(_, _, _, _) ), S1, S1a), dedup(S1a, S2),
         findall(unfold(K), ( member(K, U1) ; member(K, U2) ), Us),
         append(Us, S2, Steps), Result = proved(Steps)
     ;   Result = not_proved ).
@@ -67,9 +72,15 @@ show_proof(proved(Steps)) :-
     forall(member(S, Steps), ( step_text(S, T), format("      ~w~n", [T]) )).
 
 step_text(unfold(K), T) :- format(atom(T), "unfold ~w (one clause, not recursive)", [K]).
-step_text(pair(P, Q, induction(I)), T) :- format(atom(T), "~w = ~w by induction on argument ~w", [P, Q, I]).
-step_text(pair(P, Q, direct), T) :- format(atom(T), "~w = ~w clause by clause", [P, Q]).
+step_text(pair(P, Q, induction(I), none), T) :- !, format(atom(T), "~w = ~w by induction on argument ~w", [P, Q, I]).
+step_text(pair(P, Q, induction(I), Inv), T) :- !, inv_text(Inv, IT),
+    format(atom(T), "~w = ~w by induction on argument ~w, for inputs where ~w", [P, Q, I, IT]).
+step_text(pair(P, Q, direct, _), T) :- format(atom(T), "~w = ~w clause by clause", [P, Q]).
+step_text(invariant(Inv, From), T) :- inv_text(Inv, IT),
+    format(atom(T), "at the call, ~w (library fact about ~w), and the tail keeps it", [IT, From]).
 step_text(rule(R), T) :- rule_text(R, T).
+inv_text(upper(I, J), T) :- format(atom(T), "every element of argument ~w is at most argument ~w", [I, J]).
+inv_text(lower(I, J), T) :- format(atom(T), "every element of argument ~w is at least argument ~w", [I, J]).
 rule_text(arithmetic, 'arithmetic compared as polynomials').
 rule_text(tests, 'tests compared in normal form').
 rule_text(integers, '== and \\== on integers read as =:= and =\\=').
@@ -77,6 +88,7 @@ rule_text(residues, 'tests on E mod K compared on every residue').
 rule_text(flip, 'if-then-else with the test negated and the branches swapped').
 rule_text(inline, 'local is/2 values substituted into arithmetic').
 rule_text(equation, 'body equations solved').
+rule_text(assumption, 'tests compared on integers that satisfy the invariant').
 
 % ================================================================ programs
 % prepare(+Clauses, -prog(Clauses1, UserKeys, Recursive), -Unfolded): bodies as goal lists
@@ -164,34 +176,46 @@ structural(Prog, K, I) :-
                     ( X = [_|T1], arg(I, G, Y), Y == T1 )) )), !.
 
 % ================================================================ pairs of predicates
-prove_pair(K1, K2, Types, Ctx) :-
+% prove_pair(+K1, +K2, +Types, +Invariant, +Ctx): Invariant is none, upper(I, J) (every element
+% of the list at argument I is at most argument J) or lower(I, J); the pair is proved for the
+% inputs where it holds
+prove_pair(K1, K2, Types, Inv, Ctx) :-
     b_getval(io_proof_steps, S0),
-    (   member(proven(K1, K2, Ts0), S0), Ts0 =@= Types -> true      % reused only at the same types
-    ;   Ctx = ctx(P1, P2, Cur),
+    (   member(proven(K1, K2, Ts0, Inv0), S0), Ts0 =@= Types, Inv0 == Inv -> true   % same types and invariant
+    ;   Ctx = ctx(P1, P2, Cur, _),
         clauses_of(P1, K1, C1s), clauses_of(P2, K2, C2s),
         length(C1s, N), length(C2s, N), N > 0,
         (   ( is_rec(P1, K1) ; is_rec(P2, K2) )
         ->  structural(P1, K1, I), structural(P2, K2, I), nth1(I, Types, TI), ( TI = list(_) ; TI == any ),
-            How = induction(I), Cur1 = [K1-K2-I|Cur]
-        ;   How = direct, Cur1 = Cur ),
-        match_sets(C1s, C2s, Types, ctx(P1, P2, Cur1)),
-        copy_term(Types, Ts1), step(proven(K1, K2, Ts1)), step(pair(K1, K2, How))
+            ( Inv = none -> true ; arg(1, Inv, I) ),
+            How = induction(I), Cur1 = [K1-K2-I-Inv|Cur]
+        ;   Inv == none, How = direct, Cur1 = Cur ),
+        match_sets(C1s, C2s, Types, Inv, ctx(P1, P2, Cur1, [])),
+        copy_term(Types, Ts1), step(proven(K1, K2, Ts1, Inv)), step(pair(K1, K2, How, Inv))
     ).
 
-match_sets([], [], _, _).
-match_sets([C|Cs], Ds, Types, Ctx) :- select(D, Ds, Rest), match_clause(C, D, Types, Ctx), match_sets(Cs, Rest, Types, Ctx).
+match_sets([], [], _, _, _).
+match_sets([C|Cs], Ds, Types, Inv, Ctx) :- select(D, Ds, Rest), match_clause(C, D, Types, Inv, Ctx), match_sets(Cs, Rest, Types, Inv, Ctx).
 
-match_clause(C1, C2, Types, Ctx) :-
+match_clause(C1, C2, Types, Inv, ctx(P1, P2, Cur, _)) :-
     copy_term(C1, H1-B1), copy_term(C2, H2-B2),
     term_variables(H1-B1, V1), term_variables(H2-B2, V2), length(V1, N1), length(V2, N2),
     H1 =.. [_|A1], H2 =.. [_|A2], A1 =@= A2, A1 = A2,
     types_env(A1, Types, Env0), infer(B1, Env0, Env1), infer(B2, Env1, Env),
-    match_goals(B1, B2, Env, Ctx, H1, [], Def),
-    deferred_all(Def, Env),
+    assumptions(Inv, H1, Env, As),
+    match_goals(B1, B2, Env, ctx(P1, P2, Cur, B1), H1, [], Def),
+    deferred_all(Def, Env-As),
     distinct_vars(V1, N1), distinct_vars(V2, N2).
 
+% the invariant gives a fact about the head element: X =< M for upper, X >= M for lower
+assumptions(none, _, _, []) :- !.
+assumptions(Inv, H, Env, [C]) :-
+    Inv =.. [K, I, J], arg(I, H, L), nonvar(L), L = [X|_], !, arg(J, H, M),
+    ( K == upper -> canon(X =< M, Env, C, _) ; canon(X >= M, Env, C, _) ).
+assumptions(_, _, _, []).
+
 deferred_all([], _).
-deferred_all([D|Ds], Env) :- deferred(D, Env), deferred_all(Ds, Env).
+deferred_all([D|Ds], EA) :- deferred(D, EA), deferred_all(Ds, EA).
 
 distinct_vars(Vs, N) :- maplist(var, Vs), term_variables(Vs, Ws), length(Ws, N).
 
@@ -211,21 +235,34 @@ match_goal(V1 is E1, V2 is E2, _, _, _, D, [arith(E1, E2)|D]) :- !, V1 = V2.
 match_goal(T, U, _, _, _, D, [test(T, U)|D]) :- test_goal(T), test_goal(U), !.
 match_goal(X1 = Y1, G2, _, _, _, D, D) :- !, ( G2 = (X1 = Y1) ; G2 = (Y1 = X1) ).
 match_goal(G1, G2, Env, Ctx, H, D, D) :-
-    Ctx = ctx(P1, P2, Cur), callable(G1), callable(G2), key(G1, K1), key(G2, K2),
+    Ctx = ctx(P1, P2, Cur, Body), callable(G1), callable(G2), key(G1, K1), key(G2, K2),
     (   user_key(P1, K1)
     ->  user_key(P2, K2),
         G1 =.. [_|As1], G2 =.. [_|As2], As1 = As2,
-        (   memberchk(K1-K2-I, Cur)
-        ->  arg(I, H, X), nonvar(X), X = [_|T], nth1(I, As1, Y), Y == T
-        ;   maplist(arg_type(Env), As1, Ts), prove_pair(K1, K2, Ts, Ctx) )
+        (   memberchk(K1-K2-I-Inv, Cur)
+        ->  arg(I, H, X), nonvar(X), X = [_|T], nth1(I, As1, Y), Y == T,
+            ( Inv = none -> true ; arg(2, Inv, J), arg(J, H, MH), nth1(J, As1, MC), MC == MH )
+        ;   maplist(arg_type(Env), As1, Ts),
+            (   prove_pair(K1, K2, Ts, none, Ctx) -> true
+            ;   call_invariant(Body, As1, Inv, From), step(invariant(Inv, From)), prove_pair(K1, K2, Ts, Inv, Ctx) ) )
     ;   \+ user_key(P2, K2), K1 == K2, G1 = G2 ).
+
+% call_invariant(+Body, +CallArgs, -Invariant, -From): library facts in the calling clause.
+% max_list(L, M) means every element of L is at most M; min_list(L, M), at least M. A call
+% with L at argument I and M at argument J gets upper(I, J) or lower(I, J).
+call_invariant(Body, As, Inv, From) :-
+    member(G, Body), G =.. [F, L, M], memberchk(F-K, [max_list-upper, min_list-lower]),
+    nth1(I, As, L1), L1 == L, nth1(J, As, M1), M1 == M, I \== J,
+    Inv =.. [K, I, J], format(atom(From), "~w/2", [F]).
 
 test_goal(G) :- comparison(G).
 
 deferred(rule(R), _) :- !, step(rule(R)).
 deferred(arith(E1, E2), _) :- !, poly(E1, P1), poly(E2, P2), ( P1 == P2 -> true ; fail ), ( E1 =@= E2 -> true ; step(rule(arithmetic)) ).
-deferred(test(T, U), Env) :- canon(T, Env, C1, I1), canon_maybe_neg(U, Env, C2, I2),
-    (   C1 == C2 -> true ; residue_equal(C1, C2), step(rule(residues)) ),
+deferred(test(T, U), Env-As) :- canon(T, Env, C1, I1), canon_maybe_neg(U, Env, C2, I2),
+    (   C1 == C2 -> true
+    ;   residue_equal(C1, C2) -> step(rule(residues))
+    ;   As = [A|_], assume_equal(C1, C2, A), step(rule(assumption)) ),
     ( T =@= U -> true ; step(rule(tests)) ),
     ( ( I1 == yes ; I2 == yes ) -> step(rule(integers)) ; true ).
 canon_maybe_neg(not(U), Env, C, I) :- !, canon(U, Env, C0, I), neg_canon(C0, C).
@@ -344,3 +381,21 @@ eval_poly([], _, 0).
 eval_poly([M-C|P], As, V) :- eval_mono(M, As, MV), eval_poly(P, As, V0), V is V0 + C * MV.
 eval_mono([], _, 1).
 eval_mono([X|Xs], As, V) :- member(Y-R, As), Y == X, !, eval_mono(Xs, As, V0), V is R * V0.
+
+% assume_equal(+C1, +C2, +A): on the integers where the assumption A holds, the tests C1 and C2
+% agree. All three must be tests on one value v = Q (or -Q), each a threshold set: P =< 0,
+% P =:= 0 or P =\= 0 with P = +-Q + c. Such sets change only at their thresholds, so they are
+% compared on every integer from below the smallest threshold to above the largest.
+assume_equal(C1, C2, A) :-
+    A = le(PA), split_const(PA, _, Q), Q \== [],
+    maplist(one_d(Q), [C1, C2, A], Fs),
+    findall(T, ( member(f(_, S, C), Fs), T is -S * C ), Ts0), msort(Ts0, Ts),
+    Ts = [Lo|_], last(Ts, Hi), L is Lo - 2, U is Hi + 2,
+    Fs = [F1, F2, FA],
+    forall(( between(L, U, V), holds(FA, V) ), ( holds(F1, V) -> holds(F2, V) ; \+ holds(F2, V) )).
+one_d(Q, C, f(Kind, S, K)) :-
+    C =.. [Kind, P], memberchk(Kind, [le, eq, ne]), split_const(P, K, QP),
+    (   QP == Q -> S = 1 ; pneg(Q, NQ), QP == NQ -> S = -1 ).
+holds(f(le, S, K), V) :- S * V + K =< 0.
+holds(f(eq, S, K), V) :- S * V + K =:= 0.
+holds(f(ne, S, K), V) :- S * V + K =\= 0.

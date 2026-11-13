@@ -73,11 +73,12 @@ The other operators only make a program smaller. Deriving a new algorithm from a
 | merge | unifies two calls of one predicate with identical first arguments | none for soundness (an instance of a clause); equality then rests on functionality |
 | normalise | unfolds a literal whose case argument is a constructor and that matches at most one clause; evaluates `is/2` and comparisons on ground arguments | none |
 
-### Three eureka strategies
+### Four eureka strategies
 
 - **deforest**: a conjunctive definition such as `app3(X,Y,Z,R) :- app(X,Y,W), app(W,Z,R)` is unfolded on its induction variable and folded back. The intermediate list `W` disappears.
 - **accumulate**: a recursive call whose result is consumed afterwards gets a definition that generalises the consumer's other arguments into an accumulator. Inside `is/2`, the generalisation works on subterms. `rev(T,RT), app(RT,[H],R)` gives `rev_acc(T,A,R) :- rev(T,RT), app(RT,A,R)`, and `sum(T,S1), S is S1+H` gives `sum_acc(T,S,A) :- sum(T,S1), S is S1+A`. The step clause must end as a tail call: the definition's outputs go straight into the new call and are never computed afterwards. This rejects `sum_acc(T,S,A) :- sum_acc(T,E,H), S is E+A`, which is correct but no better.
 - **tuple**: two recursive calls on related arguments, `fib(s(N),F1), fib(N,F2)`, get one definition that computes both: `fib_tup(N,F1,F2)`. Unfolding on the larger argument and merging the repeated call `fib(s(M),_)` lets it fold into one recursive call, which makes it linear.
+- **fuse**: the recursive call and the one literal that consumes its result become one predicate, unfolded on the consumer's case argument. For flatten, `flat2([L|Ls],F) :- flat2(Ls,F0), app(L,F0,F)` gets `flat2_fuse(L,Ls,F) :- flat2(Ls,F0), app(L,F0,F)`. Unfolding `app` on `L` gives `flat2_fuse([],Ls,F) :- flat2(Ls,F)` and `flat2_fuse([X|Xs],Ls,[X|F]) :- flat2_fuse(Xs,Ls,F)`, which folds back. `app` and the intermediate list disappear, and every call is a tail call: on 64 sublists, the most pending goals fall from 65 to 1, for the same 321 resolution steps. `fuse` is tried last, so the six derivations above are unchanged.
 
 ### Types beyond lists
 
@@ -109,6 +110,7 @@ It proves or refutes each conjecture and retries with the good ones. For reverse
 
   The first two give equal answers on every typed input. With the third as well, the **least models are equal**, so the programs agree in **every mode**, not just the one checked. They give the same correct answers, though which queries terminate can differ.
 - **Sum.** Summing is equal on integer lists only. The specification also sums lists of floats, where associativity does not hold exactly, and the third check rightly fails.
+- **Totality around a cycle.** The fused flatten is a cycle of two predicates: `flat2` calls `flat2_fuse` on the tail of its list, and `flat2_fuse` calls `flat2` back on that tail while it recurses on its own first argument. `total/3` accepts such a back call when the argument it passes is the one `flat2_fuse` received as a proper subterm and kept unchanged. The pair (size of `flat2`'s list, size of `flat2_fuse`'s first argument) then decreases lexicographically around the cycle. A cycle that passes a term that is not smaller, or that changes the kept argument, is refused.
 - **Body order.** `verify/5` returns the result with each body ordered so that inputs are bound. The order of a conjunction does not change the least model.
 - **Bounded check.** `bounded_equal/7` independently compares the programs on every input up to a size: 255 lists, 723 trees, 341 integer lists, 17 naturals. A second mode, with both arguments given, agrees on every pair tried.
 
@@ -185,7 +187,7 @@ Three of the new specifications show open problems:
 | genetic | 20 | 12 proved; all 20 equal on the pool |
 | active | 20 | all 20 proved, and equal to the oracle on the pool |
 | checks | 20 | 8 on the prover (4 proved, 4 correctly refused), 6 on running programs, 6 on the hand-over to `fold.pl` |
-| to-algorithm | 15 | all 15 proved equal to their reference; `fold.pl` derives and proves an accumulator program for 14 |
+| to-algorithm | 15 | all 15 proved equal to their reference; `fold.pl` derives and proves a faster program for all 15 (14 accumulators, and flatten by `fuse`) |
 
 The 70 hierarchy problems cover maps, maps inside maps, filters, filters on each sublist, filters gated by the whole list, maps that use the whole list, templates from anti-unification and folds. The genetic pairs are 16 pipelines, plus one pipeline with five seeds.
 
@@ -196,7 +198,7 @@ The 8 genetic programs that are not proved are equal to their reference only by 
 - the largest square is the square of the largest absolute value;
 - `last(msort(L))` is `max_list(L)`, and the first element of the reverse is the last element.
 
-All 8 agree with their reference on all 1,555 lists of the pool. Flatten is the one to-algorithm pair with no derivation: it needs a lemma about `app/3` that `fold.pl` does not conjecture.
+All 8 agree with their reference on all 1,555 lists of the pool.
 
 ## Nested predicates from input/output (`io_synth.pl`)
 
@@ -231,6 +233,7 @@ The hypotheses are tried in order of cost: a constant, one expression, map, filt
 | residues | Two tests that use only `E mod K` are compared on every residue 0..K-1. |
 | flip | `(C -> A ; B)` is `(\+ C -> B ; A)` for a test C. |
 | lemma | A call is replaced by a call proved equal to it, at the same argument types. |
+| invariant | A call `P(L, M)` made after `max_list(L, M)` may assume that every element of L is at most M (after `min_list`, at least M). `P = Q` is then proved for those inputs only. The tail keeps the invariant, and in a step clause the head element X satisfies `X =< M`, so tests are compared on the integers where it holds. |
 | induction | A pair of predicates that both recurse on the tail of the same list argument is proved by induction on that list. |
 
 Each proof lists the steps it used. The prover reports `not_proved` rather than guessing: it refuses `2*X` against `2*X+1`, `msort` against `sort`, `==` on terms of unknown type, and a recursive call that is not on the tail.
@@ -238,13 +241,14 @@ Each proof lists the steps it used. The prover reports `not_proved` rather than 
 **Results** (`results/io_synth.txt`, all from running `io_synth_examples.pl`):
 
 - **Six problems with nested or hierarchical structure, each solved by top-down propagation and proved equal to its reference program.** Each also agrees with its reference on every input of a pool: 1,555 flat lists, or 7,311 nested lists.
+  - "Drop the maximum" is learned as "keep x when x < max_list(l)". The reference removes the elements equal to the maximum: `( X == M -> skip ; keep )`. The two are equal only because no element exceeds the maximum. The proof takes that from `max_list/2` as an invariant: under `X =< M`, `X < M` holds exactly when `X =\= M`.
   - "Drop the minimum from each inner list" (the example in the notes) becomes a map over sublists. Its element predicate is a filter whose test, `x =\= min_list(l)`, uses the sublist's own minimum. The minimum is computed once per sublist. The proof is by induction on the outer list, then on each sublist; it reads the reference's `X == M` as `X =:= M` on integers, and flips the if-then-else.
   - The other five are: double each element, increment every element of a list of lists (a map inside a map), subtract the minimum, the minimum and maximum (via the template `A-B`), and keep the even elements.
 - **Observational equivalence keeps 217 of 3,125 expressions** over a list, up to size 4. For fold combiners, it keeps 2,869 of 60,493.
 - **The genetic algorithm finds "sum of the squares of the even elements"** as filter, then map, then `sum_list`. With seed 1 this takes 26 generations, and the result is proved equal to the reference. Every seed from 1 to 20 finds a three-gene pipeline, in 3 to 103 generations. 14 of the 20 are proved; the other 6 square before filtering, which is equal only because x·x and x have the same parity.
 - **Active learning on drop-minimum.** It starts from the single example in the notes, where four programs fit (including "keep x > 2"). It asks one distinguishing question, `[[3]]`, and the answer `[[]]` leaves the right program. That program then agrees with the oracle on all 7,311 pool inputs, and is proved equal to the reference program the oracle runs.
-- **From input/output to an algorithm.** With the library aggregate left out, the programs found for sum, length, reverse, sum of squares and maximum are plain recursive specifications. Each is proved equal to its reference, and `fold.pl` derives an accumulator version and proves it equal. Reverse goes from four examples to `rev_acc`, using the lemma `app_assoc`, which it proves. All five pass the bounded check.
-- **The prover refuses** `2*X` against `2*X+1`, and `=\=` against `==` on terms of unknown type. It proves the same pair when the types say both are integers.
+- **From input/output to an algorithm.** With the library aggregate left out, the programs found for sum, length, reverse, sum of squares, maximum and flatten are plain recursive specifications. Each is proved equal to its reference, and `fold.pl` derives a faster program and proves it equal: an accumulator for the first five, and for flatten a fused predicate with no `append`. Reverse goes from four examples to `rev_acc`, using the lemma `app_assoc`, which it proves. All six pass the bounded check, and each derived program has fewer resolution steps or fewer pending goals.
+- **The prover refuses** `2*X` against `2*X+1`, and `=\=` against `==` on terms of unknown type. It proves the same pair when the types say both are integers. Under the `max_list` invariant it still refuses `<` against `=<`, and it does not take an upper bound from `min_list`.
 
 **What is still open.** The prover has no algebraic laws over whole lists, such as map and filter commuting or Σ2x = 2Σx, and no facts about library predicates. The library of components is small. Predicates have one input and one output. Distinguishing inputs come from a finite pool, not a solver. Checking which predicate in a hierarchy acts first (an invalid outer container holding valid inner items) is not done. The genetic algorithm searches only straight-line pipelines.
 
@@ -255,8 +259,8 @@ Each proof lists the steps it used. The prover reports `not_proved` rather than 
 | `prolog/s2a2.pl` | representation, operators, features, derivation search, learning, refinement, MNN |
 | `prolog/types.pl` | proof/types: type inclusions, same and related types, templates, dimensions, implied guards |
 | `prolog/types_tests.pl` | 17 tests for proof/types |
-| `prolog/fold.pl` | spec to algorithm: types, unfold/fold/lemma/merge, three eureka strategies, lemma discovery, totality, functionality and answer types, bounded check, strategy learning |
-| `prolog/fold_tests.pl` | 30 tests of the side conditions that keep fold sound |
+| `prolog/fold.pl` | spec to algorithm: types, unfold/fold/lemma/merge, four eureka strategies, lemma discovery, totality, functionality and answer types, bounded check, strategy learning |
+| `prolog/fold_tests.pl` | 34 tests of the side conditions that keep fold sound |
 | `prolog/fold_examples.pl` | the lemma database, six derivations, a second mode, strategy learning (writes `results/fold.txt`) |
 | `prolog/axioms.pl` | the reference optimisers, written before learning ("optimise the algorithm at the start") |
 | `prolog/instances.pl` | 13 families × (2 training + 1 to 5 test) unoptimised programs |
@@ -267,7 +271,7 @@ Each proof lists the steps it used. The prover reports `not_proved` rather than 
 | `prolog/io_synth.pl` | nested predicates from input/output: signals, top-down propagation, observational equivalence, types, anti-unification, genetic algorithm, active learning, hand-over to `fold.pl` |
 | `prolog/io_proof.pl` | proves a program found from examples equal to a reference program, for every input of the declared types |
 | `prolog/io_synth_refs.pl` | the reference programs, written by hand |
-| `prolog/io_synth_tests.pl` | 40 tests for `io_synth.pl` and `io_proof.pl` |
+| `prolog/io_synth_tests.pl` | 44 tests for `io_synth.pl` and `io_proof.pl` |
 | `prolog/io_synth_examples.pl` | hierarchies from examples with proofs, the reductions measured, the genetic algorithm, active learning, input/output to algorithm, refusals (writes `results/io_synth.txt`) |
 
 ## Run

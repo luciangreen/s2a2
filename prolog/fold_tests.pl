@@ -19,6 +19,9 @@ p(nat_missing, [f(0, 0), (f(s(s(N)), M) :- f(N, M))]).
 p(nat_even, [f(0, 0), f(s(0), 1), (f(s(s(N)), M) :- f(N, M))]).
 p(with_test, [(g([], 0)), (g([H|T], N) :- H > 0, g(T, N))]).
 p(sum_non_tail, [sum([], 0), (sum([H|T], S) :- sum(T, S1), S is S1 + H)]).
+p(flat2, [flat2([], []), (flat2([L|Ls], F) :- flat2(Ls, F0), app(L, F0, F))]).
+p(cycle_not_smaller, [q([], 0), (q([X|Xs], N) :- k(X, [X|Xs], N)), (k([], L, N) :- q(L, N)), (k([_|T], L, N) :- k(T, L, N))]).
+p(cycle_not_kept, [q([], 0), (q([X|Xs], N) :- k(X, Xs, N)), (k([], L, N) :- q(L, N)), (k([_|T], L, N) :- k(T, [a|L], N))]).
 p(fib, [fib(0, 0), fib(s(0), 1), (fib(s(s(N)), F) :- fib(s(N), F1), fib(N, F2), F is F1 + F2)]).
 
 prog(Ns, P) :- foldl([N, A0, A]>>( p(N, Cs), clauses(Cs, P1), append(A0, P1, A) ), Ns, [], P).
@@ -88,4 +91,17 @@ main :-
                           [calls_on_related_arguments, result_used_after_call]-[tuple]], Rules),
         choose_order(Rules, [calls_on_related_arguments, result_used_after_call], [tuple|_]),
         choose_order(Rules, [result_used_after_call], [accumulate|_]) )),
+    % fuse, and totality around a cycle of two predicates
+    t(fuse_derives_flatten_without_append,
+      ( prog([app, flat2], FS), spec_to_algorithm(FS, flat2/2, [], FP, report(fuse, _, _, _, _)),
+        \+ ( member(_-B, FP), member(G, B), functor(G, app, 3) ),
+        member(flat2_fuse([_|_], _, [_|_])-[flat2_fuse(_, _, _)], FP) )),
+    t(fused_flatten_is_total_and_equal,
+      ( prog([app, flat2], FS2), spec_to_algorithm(FS2, flat2/2, [], FP2, _),
+        verify(FS2, FP2, flat2/2, [in(list(list(any))), out], verdict(total(yes), functional(yes), typed_answers(yes), _, FP3)),
+        bounded_equal(FS2, flat2/2, FP3, flat2/2, [in(list(list(any))), out], 3, equal_on(_)) )),
+    t(cycle_without_a_smaller_argument_is_not_total,
+      ( prog([cycle_not_smaller], CS), \+ total(CS, q/2, [in(list(list(any))), out]) )),
+    t(cycle_that_changes_the_kept_argument_is_not_total,
+      ( prog([cycle_not_kept], CK), \+ total(CK, q/2, [in(list(list(any))), out]) )),
     ( failed(_) -> halt(1) ; format("all fold tests passed~n"), halt(0) ).
