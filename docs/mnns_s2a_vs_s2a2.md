@@ -68,7 +68,7 @@ mnns `s2a/4` solves 4 of the 12 and S2A2 solves all 12. Every program that eithe
 ## What follows
 
 - **They were complementary; S2A2 now covers both.** mnns's address projection and exact polynomial solving are now hypotheses of `io_synth`. S2A2's structural search, proofs and optimisation cover the recursive list programs that mnns's own requirement R4.1.2 asks for and does not yet meet.
-- **mnns can call S2A2.** mnns's `prolog/s2a/s2a2_bridge.pl` (`mnn_s2a2:s2a2/4`) takes an mnns spec and runs mnns's own `s2a/4` first. When that returns `no_algorithm`, it calls S2A2's `io_synth` and returns the program in mnns's `mnn_program/5` IR. This is item 5 of S2A2's Work remaining.
+- **mnns can call S2A2.** mnns's `prolog/s2a/s2a2_bridge.pl` (`mnn_s2a2:s2a2/4`) takes an mnns spec and runs mnns's own `s2a/4` first. When that returns `no_algorithm`, it calls S2A2's `io_synth` and returns the program in mnns's `mnn_program/5` IR. Given a reference program, it adds an mnns `induction_equivalence` proof, which mnns's checker re-proves with its own copy of `io_proof.pl`. The same module runs S2A2's `learn/2`, `apply_algorithm/5` and `fold.pl` on mnns programs. This is item 5 of S2A2's Work remaining; mnns's `docs/s2a2.md` keeps its status.
 - **Bugs found by this comparison.** Running these tasks found two bugs in `io_synth.pl`, both now fixed and tested:
   - A task named like a library predicate (`reverse`) emitted `reverse(A,B) :- reverse(A,B)`. Library calls are now module-qualified when they clash.
   - The genetic algorithm hung when no gene accepts the input type (`box(...)`). It now fails at once, and its emitted program is checked on every example before it is returned.
