@@ -174,6 +174,26 @@ Three of the new specifications show open problems:
 - Doubling every element has no derivation, which is expected: it is already linear.
 - "Append four lists" derives, but the totality check fails on the result.
 
+[`io_pairs/io_synth_pairs.md`](io_pairs/io_synth_pairs.md) holds 200 more pairs for `io_synth.pl`, each produced by running the code (`io_pairs/generate_io_synth.pl`):
+
+| Category | Pairs | Result |
+| --- | --- | --- |
+| signals | 20 | |
+| anti-unification | 20 | |
+| hierarchy | 70 | each agrees with its reference predicate on every input of the pool |
+| reductions | 15 | |
+| genetic | 20 | each agrees with its reference |
+| active | 20 | each ends equal to the oracle on the whole pool |
+| checks | 20 | |
+| to-algorithm | 15 | 5 proved and pass the bounded check, 5 refuted, 5 have no derivation |
+
+The 70 hierarchy problems cover maps, maps inside maps, filters, filters on each sublist, filters gated by the whole list, maps that use the whole list, templates from anti-unification and folds. The genetic pairs are 16 pipelines, plus one pipeline with five seeds.
+
+The to-algorithm pairs show two open problems in `fold.pl`:
+
+- **Refuted.** Sum of squares, sum of doubles, sum of absolute values, sum of halves and the odd count all have the form `S is S1 + f(H)`. For these, the accumulate strategy derives a program whose recursive call comes before the `is/2` that binds its accumulator. `verify/5` reports `total: no`, and the bounded check refutes it on `[0,0]`.
+- **No derivation.** Flatten, twice the length, the sum of incremented elements, the negated sum and the maximum have no derivation, because they need a lemma other than associativity of `+`, `*` or append.
+
 ## Nested predicates from input/output (`io_synth.pl`)
 
 The step before optimisation in the Manual Neuronets pipeline is "code learned from that input and output". `io_synth.pl` does it: from examples `In-Out` of an unknown predicate it writes a Prolog program, and invents helper predicates where one flat rule cannot express the behaviour. Each helper is a predicate of its own, so the hierarchy shows in the program.
