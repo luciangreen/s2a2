@@ -28,6 +28,10 @@ jobs:
         run: cd prolog && swipl -q -g main -t 'halt(1)' types_tests.pl
       - name: fold tests (side conditions of unfold, fold, lemmas, totality)
         run: cd prolog && swipl -q -g main -t 'halt(1)' fold_tests.pl
+      - name: io_synth tests (nested predicates from input/output)
+        run: cd prolog && swipl -q -g main -t 'halt(1)' io_synth_tests.pl
+      - name: io_synth examples (each checked against a reference predicate)
+        run: cd prolog && swipl -q -g main -t 'halt(1)' io_synth_examples.pl > /dev/null
       - name: Spec to algorithm examples, and the committed results must not change
         run: |
           cd prolog && swipl -q -g main -t 'halt(1)' fold_examples.pl > /dev/null

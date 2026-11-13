@@ -1,0 +1,278 @@
+== 1. Structural signals
+
+  The shapes of the examples decide which hypotheses are tried.
+
+  dropmin: [in_type(list(list(int))),out_type(list(list(int))),length_preserved,nested_input,per_sublist,depth_preserved]
+  double: [in_type(list(int)),out_type(list(int)),length_preserved,empty_case([]),depth_preserved]
+  inc_all: [in_type(list(list(int))),out_type(list(list(int))),length_preserved,nested_input,per_sublist,empty_case([]),depth_preserved]
+  submin: [in_type(list(int)),out_type(list(int)),length_preserved,depth_preserved]
+  minmax: [in_type(list(int)),out_type(any),output_template(A-B)]
+  evens: [in_type(list(int)),out_type(list(int)),subsequence,drops_elements]
+  dropmin_is_per_sublist: ok
+  minmax_has_output_template: ok
+
+== 2. Hierarchical predicates by top-down propagation
+
+--- dropmin
+  examples:
+    [[1,3,5],[5,3,2]] -> [[3,5],[5,3]]
+    [[7,9],[4]] -> [[9],[]]
+  hypothesis tree:
+    dropmin: map: each element by the sub-predicate
+      dropmin_el: filter (context): keep x when x =\= min_list(l)
+  program:
+    dropmin([], []).
+    dropmin([A|B], [C|D]) :-
+        dropmin_el(A, C),
+        dropmin(B, D).
+    dropmin_el([], []).
+    dropmin_el([A|B], C) :-
+        min_list([A|B], D),
+        dropmin_el_sel([A|B], D, C).
+    dropmin_el_sel([], _, []).
+    dropmin_el_sel([A|B], C, D) :-
+        (   dropmin_el_test(A, C)
+        ->  D=[A|E]
+        ;   D=E
+        ),
+        dropmin_el_sel(B, C, E).
+    dropmin_el_test(A, B) :-
+        A=\=B.
+  candidates built: 4917; dropped as observationally equivalent: 4138; arguments refused by type: 2021
+  against the reference on every input of the pool: equal_on(7311)
+  dropmin: ok
+
+--- double
+  examples:
+    [1,2,3] -> [2,4,6]
+    [5] -> [10]
+    [] -> []
+  hypothesis tree:
+    double: map: each element by the sub-predicate
+      double_el: expression (2*x)
+  program:
+    double([], []).
+    double([A|B], [C|D]) :-
+        double_el(A, C),
+        double(B, D).
+    double_el(A, B) :-
+        B is 2*A.
+  candidates built: 688; dropped as observationally equivalent: 442; arguments refused by type: 792
+  against the reference on every input of the pool: equal_on(1555)
+  double: ok
+
+--- inc_all
+  examples:
+    [[1,2],[3]] -> [[2,3],[4]]
+    [[5]] -> [[6]]
+    [] -> []
+  hypothesis tree:
+    inc_all: map: each element by the sub-predicate
+      inc_all_el: map: each element by the sub-predicate
+        inc_all_el_el: expression (x+1)
+  program:
+    inc_all([], []).
+    inc_all([A|B], [C|D]) :-
+        inc_all_el(A, C),
+        inc_all(B, D).
+    inc_all_el([], []).
+    inc_all_el([A|B], [C|D]) :-
+        inc_all_el_el(A, C),
+        inc_all_el(B, D).
+    inc_all_el_el(A, B) :-
+        B is A+1.
+  candidates built: 1071; dropped as observationally equivalent: 724; arguments refused by type: 1316
+  against the reference on every input of the pool: equal_on(7311)
+  inc_all: ok
+
+--- submin
+  examples:
+    [3,5,4] -> [0,2,1]
+    [7,9] -> [0,2]
+    [2] -> [0]
+  hypothesis tree:
+    submin: map: each element by the sub-predicate
+      submin_el: expression on the element x and its list l: (x-min_list(l))
+  program:
+    submin([], []).
+    submin([A|B], C) :-
+        min_list([A|B], D),
+        submin_each([A|B], D, C).
+    submin_each([], _, []).
+    submin_each([A|B], C, [D|E]) :-
+        submin_el(A, C, D),
+        submin_each(B, C, E).
+    submin_el(A, B, C) :-
+        C is A-B.
+  candidates built: 2899; dropped as observationally equivalent: 1948; arguments refused by type: 3026
+  against the reference on every input of the pool: equal_on(1555)
+  submin: ok
+
+--- minmax
+  examples:
+    [3,1,2] -> 1-3
+    [5,9] -> 5-9
+    [4] -> 4-4
+  hypothesis tree:
+    minmax: template A-B from anti-unification of the outputs
+      minmax_1: expression min_list(x)
+      minmax_2: expression max_list(x)
+  program:
+    minmax(A, B-C) :-
+        minmax_1(A, B),
+        minmax_2(A, C).
+    minmax_1(A, B) :-
+        min_list(A, B).
+    minmax_2(A, B) :-
+        max_list(A, B).
+  candidates built: 899; dropped as observationally equivalent: 556; arguments refused by type: 1020
+  against the reference on every input of the pool: equal_on(1554)
+  minmax: ok
+
+--- evens
+  examples:
+    [1,2,3,4] -> [2,4]
+    [5,6] -> [6]
+    [7] -> []
+    [-2,1] -> [-2]
+  hypothesis tree:
+    evens: filter (plain): keep x when (x mod 2) < 1
+  program:
+    evens([], []).
+    evens([A|B], C) :-
+        (   evens_test(A)
+        ->  C=[A|D]
+        ;   C=D
+        ),
+        evens(B, D).
+    evens_test(A) :-
+        A mod 2<1.
+  candidates built: 2556; dropped as observationally equivalent: 2169; arguments refused by type: 950
+  against the reference on every input of the pool: equal_on(1555)
+  evens: ok
+
+== 3. What the reductions remove
+
+  Expressions over one input list, up to size 4, run on two example inputs:
+    without observational equivalence: 3125 expressions kept (3195 built)
+    with observational equivalence:    217 expressions kept (765 built)
+  pruning_keeps_fewer: ok
+  Fold combiners over r (int) and x (int), up to size 5, on 25 probe pairs:
+    without observational equivalence: 60493 expressions kept (60776 built)
+    with observational equivalence:    2869 expressions kept (9629 built)
+  pruning_keeps_fewer_combiners: ok
+  Top-down propagation: dropmin is solved as three small searches (the map, its
+  element filter, the filter's test) instead of one search over whole programs.
+
+== 4. Genetic algorithm
+
+  The sum of the squares of the even elements is a filter, then a map, then an
+  aggregate. No top-down hypothesis splits it, so the GA searches pipelines.
+    [1,2,3,4] -> 20
+    [2] -> 4
+    [1,3] -> 0
+    [6,1] -> 36
+    [] -> 0
+  hypothesis tree:
+    sum_sq_evens: genetic algorithm, generation 26: filter((x mod 2) < 1) then map((x*x)) then sum_list
+  program:
+    sum_sq_evens(A, B) :-
+        sum_sq_evens_s1(A, C),
+        sum_sq_evens_s2(C, D),
+        sum_sq_evens_s3(D, B).
+    sum_sq_evens_s1([], []).
+    sum_sq_evens_s1([A|B], C) :-
+        (   sum_sq_evens_s1_test(A)
+        ->  C=[A|D]
+        ;   C=D
+        ),
+        sum_sq_evens_s1(B, D).
+    sum_sq_evens_s1_test(A) :-
+        A mod 2<1.
+    sum_sq_evens_s2([], []).
+    sum_sq_evens_s2([A|B], [C|D]) :-
+        sum_sq_evens_s2_el(A, C),
+        sum_sq_evens_s2(B, D).
+    sum_sq_evens_s2_el(A, B) :-
+        B is A*A.
+    sum_sq_evens_s3(A, B) :-
+        sum_list(A, B).
+  against the reference on every input of the pool: equal_on(1555)
+  ga_pipeline: ok
+  seeds 1 to 20: 20 found a pipeline, in 3 to 103 generations, at most 3 genes after shortening
+  ga_every_seed: ok
+
+== 5. Active learning with an oracle
+
+  From the single example [[1,3,5],[5,3,2]] -> [[3,5],[5,3]], several programs fit
+  (keep x > 2, keep x =\= min, ...). The loop asks the oracle about the input on which
+  the candidates disagree most, then checks the survivor on the whole pool.
+    query: distinguish([[3]]-[[]],candidates(4))
+  rounds: 2; examples used: 2; final check: equal_on(7311)
+  program:
+    dropmin([], []).
+    dropmin([A|B], [C|D]) :-
+        dropmin_el(A, C),
+        dropmin(B, D).
+    dropmin_el([], []).
+    dropmin_el([A|B], C) :-
+        min_list([A|B], D),
+        dropmin_el_sel([A|B], D, C).
+    dropmin_el_sel([], _, []).
+    dropmin_el_sel([A|B], C, D) :-
+        (   dropmin_el_test(A, C)
+        ->  D=[A|E]
+        ;   D=E
+        ),
+        dropmin_el_sel(B, C, E).
+    dropmin_el_test(A, B) :-
+        A=\=B.
+  active_dropmin: ok
+
+== 6. From input/output to an algorithm
+
+  With the library aggregate left out, the synthesised program is a plain recursive
+  specification. fold.pl turns it into an accumulator program and proves them equal.
+
+--- sum
+  specification found from [[1,2,3]-6,[4]-4,[]-0,[2,5]-7] examples:
+    sum([],0).
+    sum([A|B],C) :- sum(B,D), C is D+A.
+  derived by accumulate (lemmas [plus_assoc]):
+    sum([],0).
+    sum([A|B],C) :- sum_acc(B,C,A).
+    sum_acc([],A,B) :- A is 0+B.
+    sum_acc([A|B],C,D) :- E is A+D, sum_acc(B,C,E).
+  total: yes; specification functional: yes; typed answers: no
+  (the specification also adds floats, where the integer axiom does not hold
+  exactly, so equality is stated for integer lists, as in results/fold.txt)
+  bounded check: equal_on(341)
+  sum: ok
+
+--- len
+  specification found from [[1,2,3]-3,[4]-1,[]-0,[5,6]-2] examples:
+    len([],0).
+    len([A|B],C) :- len(B,D), C is D+1.
+  derived by accumulate (lemmas [plus_assoc]):
+    len([],0).
+    len([A|B],C) :- len_acc(B,C,1).
+    len_acc([],A,B) :- A is 0+B.
+    len_acc([A|B],C,D) :- E is 1+D, len_acc(B,C,E).
+  total: yes; specification functional: yes; typed answers: yes
+  bounded check: equal_on(255)
+  len: ok
+
+--- rev
+  specification found from [[1,2,3]-[3,2,1],[4]-[4],[]-[],[2,5]-[5,2]] examples:
+    rev([],[]).
+    rev([A|B],C) :- rev(B,D), app(D,[A],C).
+    app([],A,A).
+    app([A|B],C,[A|D]) :- app(B,C,D).
+  derived by accumulate (lemmas [app_assoc]):
+    rev([],[]).
+    rev([A|B],C) :- rev_acc(B,[A],C).
+    rev_acc([],A,A).
+    rev_acc([A|B],C,D) :- rev_acc(B,[A|C],D).
+  total: yes; specification functional: yes; typed answers: yes
+  bounded check: equal_on(255)
+  rev: ok

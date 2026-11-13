@@ -35,6 +35,11 @@ Learn an optimisation algorithm (a list of rewrite rules with conditions) from t
 | R25 | Learn which strategy to try first | done (`learn_strategies/2`, leave-one-out: 9 attempts against 12) |
 | R26 | Equality in every mode, not only the one checked | done where the specification answers only typed inputs (`slot_type/4`: equal least models) |
 | R27 | 200 input/output pairs produced by running the code | done (`io_pairs/`) |
+| R28 | Find nested and hierarchical predicates from input/output examples, inventing helper predicates | done (`io_synth.pl`: map, filter, template, foldr, context hoisting) |
+| R29 | Reduce brute-force induction: structural signals, top-down propagation, observational equivalence, types, anti-unification | done (217 of 3,125 expressions kept over a list, size 4) |
+| R30 | A genetic algorithm for pipelines that top-down propagation cannot split | done (`ga_synth/5`; sum of squares of evens with each of seeds 1-20, in 3 to 103 generations) |
+| R31 | Active learning with an oracle: distinguishing inputs and counter-examples | done (`active_synth/6`; drop-minimum from one example and one query) |
+| R32 | Hand a synthesised program to spec to algorithm | done (`to_fold_spec/3`; sum, length and reverse from examples to accumulator programs, proved) |
 
 ## Results (`results/`)
 
@@ -52,3 +57,4 @@ All 13 families (44 tests): every test result equals the axioms' result. Every r
 8. **More training examples for the strategy learner.** Six examples are few; a held-out case with no similar training example falls back to the fixed order.
 9. **More conjecture schemes.** Discovery conjectures associativity, commutativity and the integer axioms. Distributivity and identities are not yet conjectured.
 10. **Termination in every mode.** Equal least models give the same answers in every mode; whether a query terminates in a given mode is not checked.
+11. **io_synth coverage.** More components, predicates with several inputs, distinguishing inputs from a solver rather than a pool, a check of which predicate in a hierarchy acts first, and genetic search over trees rather than straight-line pipelines.

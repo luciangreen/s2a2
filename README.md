@@ -174,6 +174,38 @@ Three of the new specifications show open problems:
 - Doubling every element has no derivation, which is expected: it is already linear.
 - "Append four lists" derives, but the totality check fails on the result.
 
+## Nested predicates from input/output (`io_synth.pl`)
+
+The step before optimisation in the Manual Neuronets pipeline is "code learned from that input and output". `io_synth.pl` does it: from examples `In-Out` of an unknown predicate it writes a Prolog program, and invents helper predicates where one flat rule cannot express the behaviour. Each helper is a predicate of its own, so the hierarchy shows in the program.
+
+Brute-force induction is too slow because the number of candidate programs grows doubly exponentially with nesting depth. `io_synth.pl` cuts the search down in five ways:
+
+| Reduction | What it does |
+| --- | --- |
+| Structural signals (`signals/2`) | Reads the shapes of the examples first: length kept, output a subsequence or a permutation, a scalar from a list, per-sublist behaviour, a shared output template. Only hypotheses that fit these shapes are tried. |
+| Top-down propagation | An outer hypothesis turns the examples into examples for inner predicates, which are solved separately. A map gives pairs of elements, a filter gives kept and dropped elements, and a template gives one problem per hole. One deep search becomes several shallow ones. |
+| Observational equivalence | Expressions are built bottom-up by size and run on the examples. An expression whose outputs equal those of an earlier one is dropped. |
+| Types | Each component is typed, so an argument of the wrong type is never built. |
+| Anti-unification | The least general generalisation of the outputs (Plotkin) is a template, such as `Min-Max`. Each hole in it is solved on its own. |
+
+The hypotheses are tried in order of cost: a constant, one expression, map, filter, template, then foldr. Map and filter can also use the whole list as context. For example, "keep x when x =\= min_list(l)" and "x - min_list(l)" are learned this way, and the part that depends only on the list is moved out of the recursion. Every program returned has been run on every example and reproduces it.
+
+**Genetic algorithm.** Some pipelines can't be split top-down, such as filter, then map, then aggregate. For these, a genetic algorithm searches sequences of genes. The genes are list operations, aggregates, `map(E)`, `filter(T)` and scalar expressions, where E and T are the observationally distinct expressions from the enumerator. It uses partial-credit fitness, tournament selection, one-point crossover, and mutation that replaces, inserts or deletes a gene. Individuals that duplicate another's outputs are penalised, which keeps the population diverse. The winning sequence is then shortened and written out as one helper predicate per gene. A seed gives the same run on every SWI-Prolog build, because the module uses its own random number generator.
+
+**Active learning.** `active_synth/6` takes an oracle: the original program, or a network. It works like counter-example-guided synthesis. While the candidate programs disagree, it asks the oracle about the pool input on which they give the most different answers. Once only one candidate's behaviour remains, it checks that candidate against the oracle on the pool and adds the first counter-example.
+
+**Results** (`results/io_synth.txt`, all from running `io_synth_examples.pl`):
+
+- **Six problems with nested or hierarchical structure, each solved by top-down propagation.** Each result agrees with a reference predicate on every input of a pool: 1,555 flat lists, or 7,311 nested lists.
+  - "Drop the minimum from each inner list" (the example in the notes) becomes a map over sublists. Its element predicate is a filter whose test, `x =\= min_list(l)`, uses the sublist's own minimum. The minimum is computed once per sublist.
+  - The other five are: double each element, increment every element of a list of lists (a map inside a map), subtract the minimum, the minimum and maximum (via the template `A-B`), and keep the even elements.
+- **Observational equivalence keeps 217 of 3,125 expressions** over a list, up to size 4. For fold combiners, it keeps 2,869 of 60,493.
+- **The genetic algorithm finds "sum of the squares of the even elements"** as filter, then map, then `sum_list`. With seed 1 this takes 26 generations, and the result agrees with the reference on all 1,555 lists. Every seed from 1 to 20 finds a three-gene pipeline, in 3 to 103 generations.
+- **Active learning on drop-minimum.** It starts from the single example in the notes, where four programs fit (including "keep x > 2"). It asks one distinguishing question, `[[3]]`, and the answer `[[]]` leaves the right program. That program then agrees with the oracle on all 7,311 pool inputs.
+- **From input/output to an algorithm.** With the library aggregate left out, the synthesised program for sum, length and reverse is a plain recursive specification. `fold.pl` then derives the accumulator versions and proves them equal. Reverse goes from four examples to `rev_acc`, using the lemma `app_assoc`, which it proves. All three pass the bounded check.
+
+**What is still open.** The library of components is small. Predicates have one input and one output. Distinguishing inputs come from a finite pool, not a solver. Checking which predicate in a hierarchy acts first (an invalid outer container holding valid inner items) is not done. The genetic algorithm searches only straight-line pipelines.
+
 ## Files
 
 | File | Contents |
@@ -190,6 +222,9 @@ Three of the new specifications show open problems:
 | `prolog/speedup.pl` | search nodes with and without the MNN ordering |
 | `prolog/prover.pl` | the prover (shared with renn_pipeline) |
 | `prolog/s2gn_cover.pl` | the S2GN coverage fix |
+| `prolog/io_synth.pl` | nested predicates from input/output: signals, top-down propagation, observational equivalence, types, anti-unification, genetic algorithm, active learning, hand-over to `fold.pl` |
+| `prolog/io_synth_tests.pl` | 30 tests for `io_synth.pl` |
+| `prolog/io_synth_examples.pl` | hierarchies from examples, the reductions measured, the genetic algorithm, active learning, input/output to algorithm (writes `results/io_synth.txt`) |
 
 ## Run
 
@@ -200,6 +235,8 @@ FAMILIES=pid,plop swipl -q -g "consult(experiment),main,halt" -t halt
 swipl -q -g "consult(speedup),main,halt" -t halt
 swipl -q -g main -t 'halt(1)' fold_examples.pl                  # spec to algorithm
 swipl -q -g main -t 'halt(1)' fold_tests.pl
+swipl -q -g main -t 'halt(1)' io_synth_examples.pl              # nested predicates from input/output
+swipl -q -g main -t 'halt(1)' io_synth_tests.pl
 ```
 
 ## October 2026 Research
