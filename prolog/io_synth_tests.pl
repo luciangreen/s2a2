@@ -75,6 +75,6 @@ main :-
                                   memberchk(app([], _, _), S), \+ ( sub_term(T, S), nonvar(T), functor(T, append, 3) ) )),
     t(fold_spec_refuses_library_calls, ( \+ to_fold_spec([(m(L, M) :- min_list(L, M))], m, _) )),
     t(pools_are_shortest_first, ( int_lists(2, 0, 1, [[], [0], [1], [0,0]|_]) )),
-    (   failed(_) -> format("FAILED~n"), halt(1) ; format("all io_synth tests passed~n") ).
+    (   failed(_) -> format("FAILED~n"), halt(1) ; format("all io_synth tests passed~n"), halt(0) ).
 
 run_inputs_err(P, Name, In) :- io_synth:run_inputs(P, Name, [In], [err]).
