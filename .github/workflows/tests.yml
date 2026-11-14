@@ -32,6 +32,12 @@ jobs:
         run: cd prolog && swipl -q -g main -t 'halt(1)' io_synth_tests.pl
       - name: io_synth examples (each checked against a reference predicate)
         run: cd prolog && swipl -q -g main -t 'halt(1)' io_synth_examples.pl > /dev/null
+      - name: Dictionary generator (lemma provers, inventors, joiners); the committed output must not change
+        run: |
+          cd prolog && swipl dict_gen.pl
+          git diff --exit-code ../dictionary/generated.pl ../results/dictionary.txt
+      - name: Dictionary tests (synthesis from input/output or code)
+        run: cd prolog && swipl -q -g main -t 'halt(1)' dict_tests.pl
       - name: Spec to algorithm examples, and the committed results must not change
         run: |
           cd prolog && swipl -q -g main -t 'halt(1)' fold_examples.pl > /dev/null

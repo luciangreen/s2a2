@@ -45,6 +45,7 @@ Learn an optimisation algorithm (a list of rewrite rules with conditions) from t
 | R35 | Derive flatten of a list of lists | done (`fuse` strategy: the recursive call and its consumer become one predicate; `total/3` handles the two-predicate cycle with a lexicographic measure; all 15 to-algorithm derivations proved) |
 | R36 | Prove "drop the maximum" against the natural reference (`X == M` removed) | done (`io_proof.pl` invariant from `max_list/2`: under `X =< M`, `X < M` holds exactly when `X =\= M`) |
 | R37 | mnns's input-address projection and exact integer polynomials (degree 1 to 3) in `io_synth` | done (12 of 12 shared tasks with mnns `s2a/4`, all passing held-out inputs) |
+| R38 | A dictionary of the non-LLM algorithms in the author's repositories, with a generator of lemma provers, inventors and joiners; synthesis from it still takes only input and output (positive and negative examples) or only code, as Aleph does | done (`harvest.pl`: 477 entries from 82 repositories; `dict_gen.pl`: 347 invented, 420 joined, 55 lemmas proved, 572 tested, 51 refuted; `dict.pl`: `dict_synth/5`, `dict_synth_code/5`) |
 
 ## Results (`results/`)
 
