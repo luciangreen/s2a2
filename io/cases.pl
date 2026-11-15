@@ -10,6 +10,8 @@
 
 io_title('S2A2').
 
+:- discontiguous io_input/3, io_run/3.
+
 io_cases([synth, signals, prove_equal, equivalent, apply_axioms, learn_apply, derive]).
 
 % Clauses as text: variables named in order.
@@ -30,15 +32,15 @@ kind_out(double, L, R) :- maplist([X, Y]>>(Y is 2 * X), L, R).
 kind_out(add_k, L, R) :- maplist([X, Y]>>(Y is X + 3), L, R).
 kind_out(evens, L, R) :- include([X]>>(0 is X mod 2), L, R).
 kind_out(positives, L, R) :- include([X]>>(X > 0), L, R).
-kind_out(reverse, L, R) :- reverse(L, R).
+kind_out(reversed, L, R) :- reverse(L, R).
 kind_out(sum, L, S) :- sum_list(L, S).
 kind_out(len, L, N) :- length(L, N).
 kind_out(maximum, L, M) :- ( L = [] -> M = none ; max_list(L, M) ).
-kind_out(sort, L, R) :- msort(L, R).
+kind_out(sorted, L, R) :- msort(L, R).
 kind_out(dedup, L, R) :- sort(L, R).
 
 examples(K, Salt, Kind, Exs) :-
-    pick(K, Salt, [double, add_k, evens, positives, reverse, sum, len, maximum, sort, dedup], Kind),
+    pick(K, Salt, [double, add_k, evens, positives, reversed, sum, len, maximum, sorted, dedup], Kind),
     lists(K, Salt, Ls),
     findall(L-O, ( member(L, Ls), kind_out(Kind, L, O) ), Exs).
 
@@ -134,7 +136,7 @@ io_input(learn_apply, K, [Style, Pairs, Edges]) :-
     pick_n(K, 11, 3, [red, blue, green], Cs0), sort(Cs0, Cs),
     pick_n(K, 12, 3, [s1, s2, s3], Ss0), sort(Ss0, Ss),
     num(K, 13, 1, 2, NP), Pairs0 = [col-colour-q-Cs, big-size-s-Ss], length(Pairs, NP), append(Pairs, _, Pairs0),
-    pick_n(K, 14, 4, [a-b, b-c, c-d, a-c, d-a], Es0), sort(Es0, Edges).
+    pick_n(K, 14, 3, [a-b, b-c, a-c, c-a], Es0), sort(Es0, Edges).
 % the learned algorithm, the program it gives for conn/2, and the prover's verdict
 io_run(learn_apply, [Style, Pairs, Edges], [algorithm(Alg1), optimised(Lines), proof(Proof)]) :-
     maplist([Top-Base-Wrap-Xs, Pr]>>wrapper_pair(Style, Top, Base, Wrap, Xs, Pr), Pairs, Prs),
