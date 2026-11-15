@@ -252,6 +252,31 @@ Each proof lists the steps it used. The prover reports `not_proved` rather than 
 
 **What is still open.** The prover has no algebraic laws over whole lists, such as map and filter commuting or Σ2x = 2Σx, and no facts about library predicates. The library of components is small. Predicates have one input and one output. Distinguishing inputs come from a finite pool, not a solver. Checking which predicate in a hierarchy acts first (an invalid outer container holding valid inner items) is not done. The genetic algorithm searches only straight-line pipelines.
 
+## A dictionary of algorithms (`dictionary/`, `dict.pl`, `harvest.pl`, `dict_gen.pl`)
+
+`io_synth` builds programs from a small fixed set of components. The dictionary adds background knowledge, as Aleph does: algorithms already written in the author's other repositories. Synthesis still takes only input and output (or only code).
+
+**Harvest** (`harvest.pl`). The harvester read 3,095 Prolog files from 146 of the public repositories. It skipped every file that mentions an LLM, an LLM service or a chatbot (58 files), so nothing that calls a model is used. In the rest it kept a predicate only when the predicate, and everything it calls, uses pure built-ins: no input or output, no assert, no shell or network, no call of a variable, and no `random` or clock in arithmetic. That gave 11,601 pure predicates. Each one of arity 1, 2 or 3 was then run on probe inputs of each type. It became an entry for the first type on which it gives a plain-data answer for at least 60% of the inputs, and is not constant or the identity there. Predicates with the same behaviour are kept as one entry (the smallest code). The others are kept as alternatives, which become equality lemmas. The result is **477 entries from 82 repositories** in `dictionary/dictionary.pl`. Each entry records its source repository, file and predicate. Its code is closed: the helpers are renamed `Id__helper`, a test `p(X)` becomes `Id(X, true/false)`, and `p(A, B, C)` becomes `Id(A-B, C)`.
+
+**Generator** (`dict_gen.pl`). This writes `dictionary/generated.pl` and `results/dictionary.txt`. Each new entry is built from existing entries, and is kept only if its behaviour on the probe inputs differs from every entry before it.
+
+| Part | What it does | Result |
+| --- | --- | --- |
+| Lemma provers | A conjecture is made only when it holds on the probe pool. It is then run on a larger pool, where a counter-example refutes it. If none is found, `io_proof:prove_equal/6` tries to prove it for every input of the declared types; failing that, it is kept as tested. Conjectures: two harvested definitions are equal; `F(F(X)) = F(X)`; `F(F(X)) = X`; `G(F(X)) = F(G(X))`; an invented entry equals an existing one. | 55 proved, 572 tested, 51 refuted. For example, `detlog2_det_sum = pl2js_sum_of` is proved by induction. `detlog2_triangle = algebraplop2_tri` holds on -2..7, but is refuted at 10. |
+| Inventors | One scheme over one entry: `map(F)`, `filter(T)`, `count(T)`, `all(T)`, `any(T)`, `per_sublist(F)`, `fold(F)` (a binary operation folded from the first element), `twice(F)` | 347 entries |
+| Joiners | Two or three entries: `compose(F, G)` (G after F), `fork(F, G)` (`X -> F(X)-G(X)`), `cond(T, F, G)` | 420 entries. 49 compositions are not built because a lemma (idempotent, involution or commute) makes them redundant. |
+
+**Synthesis from the dictionary** (`dict.pl`). `dict_synth(Name, Examples, Options, Program, Report)` takes positive examples `In-Out` and negative examples `neg(In-Out)`, as Aleph takes E+ and E-. It first tries one entry, then two entries joined, where the first steps are deduplicated by their intermediate values (observational equivalence). Candidates are typed by their inputs and taken smallest first. When nothing fits, it falls back to `io_synth:synth/5`. The program returned is `Name/2` with all the code it needs, and it is run on every example. `dict_synth_code(Code, Name, Options, Program, Report)` takes only code. It runs the code on the pool of its input type, synthesises from those examples, proves the result equal to the code with `io_proof` where it can, and runs the two against each other. Examples (`dict_tests.pl`):
+
+- `[2-4, 3-9, -1-1]` gives `algebraplop2_sq`, harvested from algebraplop2.
+- `[[1,2]-9, [3]-9, [2,2]-16]` gives `detlog2_det_sum` then `algebraplop2_sq`.
+- Sum of squares, `[[1,2]-5, [3]-9, []-0, [1,1,1]-3]`, gives the invented `map(algebraplop2_sq)` then `detlog2_det_sum`.
+- `[3-9, neg(2-4)]`: the negative example rules out the square.
+- Code only: a hand-written `total/2` is matched to `detlog2_det_sum` and proved equal by induction on the list.
+- "Drop the minimum of each sublist" is not in the dictionary, so `io_synth` finds it.
+
+**What is still open.** The harvest probes only integers, lists of integers and pairs of them, so algorithms over strings, atoms and terms are found only where they also work on those inputs. `io_proof` does not prove the idempotence or involution lemmas, so these are kept as tested. Aleph's background clauses given with the examples (not harvested), and mode declarations, are not taken yet. To re-harvest, clone the repositories and run `swipl harvest.pl -- ../dictionary/dictionary.pl Repo1 Repo2 ...`.
+
 ## Further reading
 
 - [`docs/io_synth_examples.md`](docs/io_synth_examples.md): worked input/output → program examples, the hand-over to `fold.pl`, and how this differs from Popper and Aleph.
@@ -278,6 +303,10 @@ Each proof lists the steps it used. The prover reports `not_proved` rather than 
 | `prolog/io_proof.pl` | proves a program found from examples equal to a reference program, for every input of the declared types |
 | `prolog/io_synth_refs.pl` | the reference programs, written by hand |
 | `prolog/io_synth_tests.pl` | 50 tests for `io_synth.pl` and `io_proof.pl` |
+| `prolog/harvest.pl` | harvests the non-LLM algorithms of a set of repositories into `dictionary/dictionary.pl` |
+| `prolog/dict.pl` | loads and runs the dictionary; synthesis from input/output (positive and negative examples) or from code, with `io_synth` as the fallback |
+| `prolog/dict_gen.pl` | lemma provers, inventors and joiners (writes `dictionary/generated.pl` and `results/dictionary.txt`) |
+| `prolog/dict_tests.pl` | 13 tests for the dictionary and synthesis from it |
 | `prolog/io_synth_examples.pl` | hierarchies from examples with proofs, the reductions measured, the genetic algorithm, active learning, input/output to algorithm, refusals (writes `results/io_synth.txt`) |
 
 ## Run
@@ -291,6 +320,8 @@ swipl -q -g main -t 'halt(1)' fold_examples.pl                  # spec to algori
 swipl -q -g main -t 'halt(1)' fold_tests.pl
 swipl -q -g main -t 'halt(1)' io_synth_examples.pl              # nested predicates from input/output
 swipl -q -g main -t 'halt(1)' io_synth_tests.pl
+swipl dict_gen.pl                                               # inventors, joiners, lemma provers
+swipl -q -g main -t 'halt(1)' dict_tests.pl                     # synthesis from the dictionary
 ```
 
 ## October 2026 Research

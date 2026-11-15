@@ -1,0 +1,249 @@
+Dictionary of algorithms (dictionary/dictionary.pl, dictionary/generated.pl)
+
+== Harvested from the repositories (harvest.pl): 477 entries
+
+  Algorithm-Writer-with-Lists: 9
+  CFGConverter2: 12
+  Combination-Algorithm-Writer: 2
+  Combination-Algorithm-Writer-Multiple-Predicates: 2
+  Essay-Helper: 1
+  Euler-Theorem-Prover: 1
+  File2List2Br: 1
+  Gaussian-Theorem-Prover: 11
+  Goal-Pattern: 8
+  Human-Thought-Examination-Generator: 2
+  List-Prolog-Package-Manager: 1
+  List-Prolog-to-Prolog-Converter: 1
+  Logic-Formula-Finder: 1
+  Music-Composer: 18
+  Philosophy: 64
+  Program-Finder-from-Data-: 3
+  Prolog_Inductive_Debugger: 4
+  SSI: 1
+  Simple-List-Prolog-to-List-Prolog: 1
+  Starlog: 14
+  Text-to-Breasonings: 3
+  algebraplop: 2
+  algebraplop2: 14
+  ann2pl: 6
+  anns2a: 5
+  basicdetlog: 4
+  basicpiglog2: 3
+  basicplop: 2
+  basics2a: 5
+  basicstarlog: 1
+  c2lp: 2
+  codegen: 4
+  culturaltranslationtool: 1
+  databaseformulafinder: 1
+  detlog: 4
+  detlog2: 25
+  fermatmnn: 7
+  fingertipmrsnakes: 1
+  hyperscript: 2
+  iq: 10
+  leaststepformuladiscovery: 1
+  listprologinterpreter: 9
+  loop2: 1
+  lotion: 1
+  luciancicd: 3
+  luciancicd2: 10
+  lucianjobs: 1
+  mi: 14
+  mi2: 1
+  mindreader: 2
+  minichatbot: 3
+  mnn1: 5
+  mnn3: 1
+  mnns: 38
+  mnns-typesproofs: 1
+  moviemakerchatbot: 1
+  neuroprolog: 19
+  neurostarlog: 10
+  nn-mnnbenchmarks: 3
+  nn2mnn: 4
+  nnconverter: 3
+  piglog: 3
+  piglog2: 4
+  pl2ann: 2
+  pl2c: 2
+  pl2q: 2
+  pl2qc: 2
+  plop: 13
+  plop2: 6
+  qhdc: 5
+  quantum-mnn-supercompiler: 1
+  ranklucian: 3
+  renn: 9
+  renn-inverse: 5
+  retromr: 2
+  robotmnn: 1
+  sentencedebugger: 4
+  songwriterchatbot: 5
+  vetusiacardlanguagebuilder: 6
+  vetusiapl2webpl: 6
+  zeals: 6
+
+  by input type:
+    int: 112
+    list(int): 143
+    list(list(int)): 31
+    pair(int,int): 55
+    pair(int,list(int)): 14
+    pair(list(int),int): 29
+    pair(list(int),list(int)): 93
+
+== Lemmas (conjectured on the probe pool, then refuted on a larger pool, proved by io_proof, or tested)
+
+  equal: 46 proved, 470 tested only, 38 refuted
+  idempotent: 0 proved, 24 tested only, 0 refuted
+  involution: 0 proved, 2 tested only, 0 refuted
+  commute: 9 proved, 76 tested only, 13 refuted
+
+  proved, for example:
+    equal [ann2pl_num,philosophy_positive]
+    equal [ann2pl_num_11,basicdetlog_decision_test_condition]
+    equal [ann2pl_num_11,gaussian_theorem_prover_property_with_false_base]
+    equal [ann2pl_num_11,neurostarlog_positive]
+    equal [mi_double,philosophy_equity]
+    equal [philosophy_connector_coords,piglog_dependency_chain]
+    equal [plop_combined_2,piglog_chain]
+    equal [plop_combined_2,plop_combined]
+    equal [plop_expensive_3,plop_expensive]
+    equal [detlog2_det_sum,pl2js_sum_of]
+    equal [gaussian_theorem_prover_first_differences,gaussian_theorem_prover_pairwise_differences]
+    equal [algebraplop2_sum2,detlog2_plus_step]
+
+  refuted on the larger pool, for example:
+    equal [ann2pl_div5,fingertipmrsnakes_level_count]: counter-example 10
+    equal [ann2pl_num_11,piglog_guarded]: counter-example 10
+    equal [detlog2_triangle,algebraplop2_tri]: counter-example 10
+    equal [detlog2_triangle,piglog2_cpu_work]: counter-example 10
+    equal [starlog_t4,detlog2_b]: counter-example 4
+    equal [starlog_t4,ann2pl_div3]: counter-example 6
+
+  compositions not built because a lemma makes them redundant: 49
+
+== Invented (inventors, one scheme over one entry)
+
+  all: 13
+  any: 16
+  count: 18
+  filter: 16
+  fold: 19
+  map: 89
+  per_sublist: 128
+  twice: 48
+
+  the first of each scheme:
+
+  inv_all_ann2pl_num : list(int) -> bool
+    [3,1,2] -> true
+    [1,2,3] -> true
+    [5,-1,4,0] -> false
+    [4,4,1,3] -> true
+
+  inv_any_philosophy_a2 : list(int) -> bool
+    [3,1,2] -> true
+    [1,2,3] -> true
+    [5,-1,4,0] -> false
+    [4,4,1,3] -> true
+
+  inv_count_philosophy_a2 : list(int) -> int
+    [3,1,2] -> 1
+    [1,2,3] -> 1
+    [5,-1,4,0] -> 0
+    [4,4,1,3] -> 1
+
+  inv_filter_philosophy_a2 : list(int) -> list(int)
+    [3,1,2] -> [1]
+    [1,2,3] -> [1]
+    [5,-1,4,0] -> []
+    [4,4,1,3] -> [1]
+
+  inv_fold_detlog_loop_between : list(int) -> int
+    [3,1,2] -> (undefined)
+    [1,2,3] -> 1
+    [5,-1,4,0] -> (undefined)
+    [4,4,1,3] -> (undefined)
+
+  inv_map_listprologinterpreter_prepare_string_c : list(int) -> list(list(int))
+    [3,1,2] -> [[51],[49],[50]]
+    [1,2,3] -> [[49],[50],[51]]
+    [5,-1,4,0] -> [[53],[45,49],[52],[48]]
+    [4,4,1,3] -> [[52],[52],[49],[51]]
+
+  inv_per_sublist_cfgconverter2_remove_duplicate_rules : list(list(int)) -> list(list(int))
+    [[1,2],[3]] -> [[1,2],[3]]
+    [[3,1],[2,5,4]] -> [[1,3],[2,4,5]]
+    [[0],[],[2,2]] -> [[0],[],[2]]
+    [[4,1,3]] -> [[1,3,4]]
+
+  inv_twice_algebraplop2_sq : int -> int
+    1 -> 1
+    2 -> 16
+    3 -> 81
+    5 -> 625
+
+== Joined (joiners, two or three entries)
+
+  compose: 300
+  cond: 60
+  fork: 60
+
+  the first three of each kind:
+
+  join_cfgconverter2_remove_duplicate_rules_then_plop2_backwards : list(int) -> list(int)
+    [3,1,2] -> [3,2,1]
+    [1,2,3] -> [3,2,1]
+    [5,-1,4,0] -> [5,4,0,-1]
+    [4,4,1,3] -> [4,3,1]
+
+  join_cfgconverter2_remove_duplicate_rules_then_starlog_normal_prolog : list(int) -> int
+    [3,1,2] -> 3
+    [1,2,3] -> 3
+    [5,-1,4,0] -> 4
+    [4,4,1,3] -> 3
+
+  join_iq_flat_cols_then_plop2_backwards : list(list(int)) -> list(int)
+    [[1,2],[3]] -> [3,2,1]
+    [[3,1],[2,5,4]] -> [4,5,2,1,3]
+    [[0],[],[2,2]] -> [2,2,0]
+    [[4,1,3]] -> [3,1,4]
+
+  if_philosophy_a2_then_listprologinterpreter_prepare_string_c_else_philosophy_unpile : int -> list(int)
+    1 -> [49]
+    2 -> [2]
+    3 -> [3]
+    5 -> [5]
+
+  if_philosophy_a2_then_listprologinterpreter_prepare_string_c_else_plop2_numlist_k : int -> list(int)
+    1 -> [49]
+    2 -> [1,2]
+    3 -> [1,2,3]
+    5 -> [1,2,3,4,5]
+
+  if_philosophy_a2_then_listprologinterpreter_prepare_string_c_else_algebraplop2_odds : int -> list(int)
+    1 -> [49]
+    2 -> [1,3,5]
+    3 -> [1,3,5,7]
+    5 -> [1,3,5,7,9,11]
+
+  fork_cfgconverter2_remove_duplicate_rules_and_plop2_backwards : list(int) -> pair(list(int),list(int))
+    [3,1,2] -> [1,2,3]-[2,1,3]
+    [1,2,3] -> [1,2,3]-[3,2,1]
+    [5,-1,4,0] -> [-1,0,4,5]-[0,4,-1,5]
+    [4,4,1,3] -> [1,3,4]-[3,1,4,4]
+
+  fork_cfgconverter2_remove_duplicate_rules_and_starlog_normal_prolog : list(int) -> pair(list(int),int)
+    [3,1,2] -> [1,2,3]-3
+    [1,2,3] -> [1,2,3]-3
+    [5,-1,4,0] -> [-1,0,4,5]-4
+    [4,4,1,3] -> [1,3,4]-4
+
+  fork_cfgconverter2_remove_duplicate_rules_and_zeals_execute_sort : list(int) -> pair(list(int),list(int))
+    [3,1,2] -> [1,2,3]-[1,2,3]
+    [1,2,3] -> [1,2,3]-[1,2,3]
+    [5,-1,4,0] -> [-1,0,4,5]-[-1,0,4,5]
+    [4,4,1,3] -> [1,3,4]-[1,3,4,4]
+
