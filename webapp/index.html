@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>S2A2 Workbench</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:wght@500;600&display=swap" rel="stylesheet">
+<style>
+/* Layout: a fixed left rail of capabilities, a working pane with input on top and S2A2's own output below. */
+:root {
+  --ink: #18202b;
+  --paper: #f6f7f4;
+  --panel: #ffffff;
+  --rule: #d9ddd6;
+  --muted: #5d6673;
+  --accent: #2f5d50;
+  --accent-soft: #e3eee9;
+  --ok: #1f7a3d; --ok-bg: #e2f2e6;
+  --warn: #8a5a00; --warn-bg: #f8edd4;
+  --bad: #a3262a; --bad-bg: #f7e1e0;
+  --code-bg: #f1f3ef;
+  --font-display: "IBM Plex Serif", Georgia, serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ink: #e4e8e2; --paper: #12161b; --panel: #1a2027; --rule: #2d353e; --muted: #9aa4ae;
+    --accent: #7fc1ac; --accent-soft: #1f3530; --ok: #7fd394; --ok-bg: #1b3324;
+    --warn: #e8c070; --warn-bg: #3a2f17; --bad: #f09a96; --bad-bg: #3d1f1f; --code-bg: #151a20;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --ink: #e4e8e2; --paper: #12161b; --panel: #1a2027; --rule: #2d353e; --muted: #9aa4ae;
+  --accent: #7fc1ac; --accent-soft: #1f3530; --ok: #7fd394; --ok-bg: #1b3324;
+  --warn: #e8c070; --warn-bg: #3a2f17; --bad: #f09a96; --bad-bg: #3d1f1f; --code-bg: #151a20;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--paper); color: var(--ink); font: 15px/1.55 var(--font-body); }
+a { color: var(--accent); }
+.app { display: grid; grid-template-columns: 250px 1fr; min-height: 100%; }
+nav.rail { border-right: 1px solid var(--rule); padding: 20px 16px; display: flex; flex-direction: column; gap: 4px; position: sticky; top: 0; height: 100vh; overflow-y: auto; background: var(--panel); }
+.brand { font-family: var(--font-display); font-size: 22px; font-weight: 600; margin: 0 0 2px; }
+.brand-sub { color: var(--muted); font-size: 13px; margin-bottom: 14px; }
+nav.rail a { display: grid; grid-template-columns: 26px 1fr; align-items: baseline; padding: 7px 10px; border-radius: 6px; text-decoration: none; color: var(--ink); font-size: 14px; }
+nav.rail a .num { font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+nav.rail a:hover { background: var(--accent-soft); }
+nav.rail a[aria-current="page"] { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.engine { margin-top: auto; padding-top: 14px; border-top: 1px solid var(--rule); font-size: 13px; color: var(--muted); display: grid; gap: 6px; }
+.engine .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--warn); margin-right: 6px; }
+.engine.ready .dot { background: var(--ok); }
+.engine.failed .dot { background: var(--bad); }
+main { padding: 28px 32px 60px; max-width: 1100px; width: 100%; }
+section.view { display: none; }
+section.view.active { display: grid; gap: 18px; }
+h1 { font-family: var(--font-display); font-size: 30px; line-height: 1.2; margin: 0; text-wrap: balance; font-weight: 600; }
+h2 { font-family: var(--font-display); font-size: 20px; margin: 0; text-wrap: balance; font-weight: 600; }
+h3 { font-size: 15px; margin: 0; font-weight: 600; }
+p { margin: 0; max-width: 72ch; }
+.lede { color: var(--muted); font-size: 16px; }
+.card { background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; padding: 16px 18px; display: grid; gap: 12px; }
+.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.cap { text-decoration: none; color: inherit; transition: border-color .15s; }
+.cap:hover { border-color: var(--accent); }
+.cap .k { font-family: var(--font-mono); font-size: 12px; color: var(--accent); }
+.figs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+.fig { border-left: 3px solid var(--accent); padding: 4px 0 4px 12px; }
+.fig b { display: block; font-size: 24px; font-family: var(--font-display); font-variant-numeric: tabular-nums; }
+.fig span { color: var(--muted); font-size: 13px; }
+.pipeline { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 13px; }
+.pipeline span { border: 1px solid var(--rule); border-radius: 6px; padding: 6px 10px; background: var(--panel); }
+.pipeline span.me { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.pipeline i { color: var(--muted); font-style: normal; }
+label { font-size: 13px; font-weight: 600; display: block; margin-bottom: 4px; }
+.hint { color: var(--muted); font-size: 13px; font-weight: 400; }
+textarea, input[type=text], select { width: 100%; font: 13.5px/1.5 var(--font-mono); color: var(--ink); background: var(--code-bg); border: 1px solid var(--rule); border-radius: 6px; padding: 8px 10px; }
+textarea { min-height: 96px; resize: vertical; }
+select { font-family: var(--font-body); }
+textarea:focus, input:focus, select:focus, button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.fields { display: grid; gap: 12px; }
+.fields.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+button { font: 600 14px var(--font-body); border-radius: 6px; padding: 8px 16px; border: 1px solid var(--accent); background: var(--accent); color: var(--panel); cursor: pointer; }
+button.ghost { background: transparent; color: var(--accent); }
+button:disabled { opacity: .5; cursor: not-allowed; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font: 500 12.5px var(--font-body); padding: 4px 10px; border-radius: 999px; border: 1px solid var(--rule); background: var(--panel); color: var(--ink); cursor: pointer; }
+.chip:hover, .chip[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+.out-wrap { display: grid; gap: 6px; }
+.out-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); }
+pre.out { margin: 0; background: var(--code-bg); border: 1px solid var(--rule); border-radius: 6px; padding: 12px 14px; font: 13px/1.5 var(--font-mono); overflow-x: auto; white-space: pre; min-height: 60px; max-height: 620px; overflow-y: auto; }
+pre.out .h { font-weight: 600; color: var(--accent); }
+pre.out .ok { color: var(--ok); }
+pre.out .bad { color: var(--bad); }
+pre.out .warn { color: var(--warn); }
+.pill { font: 600 11.5px var(--font-body); padding: 2px 8px; border-radius: 999px; display: inline-block; }
+.pill.ok { background: var(--ok-bg); color: var(--ok); }
+.pill.warn { background: var(--warn-bg); color: var(--warn); }
+.pill.bad { background: var(--bad-bg); color: var(--bad); }
+.pill.run { background: var(--accent-soft); color: var(--accent); }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+th { font-weight: 600; color: var(--muted); font-size: 12px; }
+td.mono, td code { font-family: var(--font-mono); font-size: 12.5px; }
+.tablewrap { overflow-x: auto; max-height: 460px; overflow-y: auto; border: 1px solid var(--rule); border-radius: 6px; background: var(--panel); }
+tr.clickable { cursor: pointer; }
+tr.clickable:hover td { background: var(--accent-soft); }
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--rule); flex-wrap: wrap; }
+.tabs button { background: transparent; color: var(--muted); border: none; border-bottom: 2px solid transparent; border-radius: 0; padding: 8px 12px; }
+.tabs button[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); }
+.note { font-size: 13px; color: var(--muted); }
+.menu-btn { display: none; }
+@media (max-width: 860px) {
+  .app { grid-template-columns: 1fr; }
+  nav.rail { position: static; height: auto; flex-direction: row; flex-wrap: wrap; border-right: none; border-bottom: 1px solid var(--rule); }
+  .brand-sub, .engine { width: 100%; }
+  .engine { margin-top: 8px; }
+  main { padding: 20px 16px 48px; }
+  .grid2, .grid3, .fields.two { grid-template-columns: 1fr; }
+  .figs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="app">
+<nav class="rail" aria-label="Capabilities">
+  <div><div class="brand">S2A2</div><div class="brand-sub">Spec to Algorithm 2, running live in your browser</div></div>
+  <a href="#overview"><span class="num">00</span>Overview</a>
+  <a href="#learn"><span class="num">01</span>Learn an optimisation</a>
+  <a href="#spec"><span class="num">02</span>Specification to algorithm</a>
+  <a href="#examples"><span class="num">03</span>Program from examples</a>
+  <a href="#dictionary"><span class="num">04</span>Dictionary of algorithms</a>
+  <a href="#prover"><span class="num">05</span>Prove two programs equal</a>
+  <a href="#types"><span class="num">06</span>Types from proofs</a>
+  <a href="#mnn"><span class="num">07</span>MNN speed-up</a>
+  <a href="#reports"><span class="num">08</span>Committed results</a>
+  <div class="engine" id="engine" role="status" aria-live="polite">
+    <div><span class="dot"></span><span id="engine-text">Starting SWI-Prolog…</span></div>
+    <div id="engine-detail" class="note"></div>
+    <div class="row"><button class="ghost" id="stop" disabled>Stop the running query</button></div>
+  </div>
+</nav>
+
+<main>
+<!-- ============================================================ overview -->
+<section class="view" id="view-overview">
+  <h1>What S2A2 can do</h1>
+  <p class="lede">S2A2 learns how to optimise Prolog programs from a few before-and-after pairs, writes programs from input/output examples, turns specifications into faster algorithms, and proves every result. Each page here runs the real S2A2 code in SWI-Prolog, compiled to WebAssembly, inside this page. Nothing is sent to a server.</p>
+  <div class="figs">
+    <div class="fig"><b>44 / 44</b><span>test programs in 13 families optimised exactly and proved</span></div>
+    <div class="fig"><b>9</b><span>rewrite operators, each with learned conditions</span></div>
+    <div class="fig"><b>1,244</b><span>dictionary entries: 477 harvested, 347 invented, 420 joined</span></div>
+    <div class="fig"><b>3.7×</b><span>fewer search nodes with the MNN operator order</span></div>
+  </div>
+  <div class="card">
+    <h2>Where it sits</h2>
+    <p>S2A2 is the last step of the Manual Neuronets pipeline: it finds the optimisation that turns the original program into the code learned from the network's input and output.</p>
+    <div class="pipeline" aria-label="Pipeline">
+      <span>Prolog program</span><i>→</i><span>pl2ann network</span><i>→</i><span>input recovered from output</span><i>→</i><span>code learned from input/output</span><i>→</i><span class="me">S2A2: the optimisation, proved</span>
+    </div>
+  </div>
+  <div class="grid3">
+    <a class="card cap" href="#learn"><span class="k">01 · s2a2.pl</span><h3>Learn an optimisation</h3><p class="note">From two training pairs per family, learn rewrite rules with conditions, apply them to unseen programs, and prove the result equal to the original.</p></a>
+    <a class="card cap" href="#spec"><span class="k">02 · fold.pl</span><h3>Specification to algorithm</h3><p class="note">Unfold/fold with eureka strategies (deforest, accumulate, tuple) turns naive reverse into an accumulator and Fibonacci into a linear loop.</p></a>
+    <a class="card cap" href="#examples"><span class="k">03 · io_synth.pl</span><h3>Program from examples</h3><p class="note">Nested predicates from a handful of input/output pairs, active learning with an oracle, and a proof against a reference.</p></a>
+    <a class="card cap" href="#dictionary"><span class="k">04 · dict.pl</span><h3>Dictionary of algorithms</h3><p class="note">Algorithms harvested from 82 repositories, grown by inventors and joiners, with lemmas proved, tested or refuted. Synthesise from examples or from code, as Aleph does.</p></a>
+    <a class="card cap" href="#prover"><span class="k">05 · io_proof.pl</span><h3>Prove two programs equal</h3><p class="note">For every input of the declared types: unfolding, induction on lists, and arithmetic compared as polynomials.</p></a>
+    <a class="card cap" href="#types"><span class="k">06 · types.pl</span><h3>Types from proofs</h3><p class="note">Which argument slots are contained in, or the same as, others, and which guards are implied, for every input.</p></a>
+  </div>
+  <div class="card">
+    <h2>How to use it</h2>
+    <p>Pick a page on the left. Each one opens with a worked example already filled in: press the run button to watch S2A2 work, then edit the input or choose another example. The first run waits for SWI-Prolog to start (a few seconds; it is about 7 MB). A long query can be stopped from the left rail.</p>
+  </div>
+</section>
+
+<!-- ============================================================ learn -->
+<section class="view" id="view-learn">
+  <h1>Learn an optimisation from two pairs</h1>
+  <p class="lede">Each family has two training pairs (an unoptimised program and its optimised form) and one to five test programs S2A2 has never seen. S2A2 finds a derivation for each pair, learns each operator's conditions by sequential covering, refines them with the prover, then applies the learned algorithm to the tests and proves each result equal to its original.</p>
+  <div class="card">
+    <div class="fields two">
+      <div><label for="fam">Family</label><select id="fam"></select></div>
+      <div><label>About this family</label><div id="fam-about" class="note"></div></div>
+    </div>
+    <div class="row">
+      <button id="fam-run">Learn, apply and prove</button>
+      <button class="ghost" id="fam-show">Show the training and test programs</button>
+      <button class="ghost" id="fam-log">Show the committed CI log</button>
+      <span class="note" id="fam-time"></span>
+    </div>
+  </div>
+  <div class="out-wrap"><div class="out-head"><span id="fam-out-title">Output</span><span id="fam-status"></span></div><pre class="out" id="fam-out"></pre></div>
+</section>
+
+<!-- ============================================================ spec -->
+<section class="view" id="view-spec">
+  <h1>From a specification to an algorithm</h1>
+  <p class="lede">Write a clear but slow program. S2A2 (fold.pl) tries its eureka strategies in a learned order, discovers and proves the lemmas it needs, and checks the derived program is total, the specification functional, and both equal on a bounded set of inputs.</p>
+  <div class="card">
+    <div class="chips" id="spec-presets" aria-label="Examples"></div>
+    <div><label for="spec-src">Specification <span class="hint">Prolog clauses</span></label><textarea id="spec-src" rows="6"></textarea></div>
+    <div class="fields two">
+      <div><label for="spec-target">Target predicate</label><input type="text" id="spec-target"></div>
+      <div><label for="spec-mode">Mode <span class="hint">argument types, in or out</span></label><input type="text" id="spec-mode"></div>
+    </div>
+    <div class="row"><button id="spec-run">Derive and verify</button></div>
+  </div>
+  <div class="out-wrap"><div class="out-head"><span>Output</span><span id="spec-status"></span></div><pre class="out" id="spec-out"></pre></div>
+</section>
+
+<!-- ============================================================ examples -->
+<section class="view" id="view-examples">
+  <h1>A program from input/output examples</h1>
+  <p class="lede">Give a few <code>Input-Output</code> pairs. S2A2 reads structural signals from their shapes, proposes nested predicates top-down (map, filter, fold, per-sublist, templates), prunes candidates that behave the same, and hands a recursive result to fold.pl for a faster version.</p>
+  <div class="tabs" role="tablist">
+    <button role="tab" aria-selected="true" data-tab="io-plain">Find a program</button>
+    <button role="tab" aria-selected="false" data-tab="io-proof">Find it and prove it</button>
+    <button role="tab" aria-selected="false" data-tab="io-active">Active learning</button>
+  </div>
+  <div class="card" id="io-plain">
+    <div class="chips" id="io-presets"></div>
+    <div><label for="io-ex">Examples <span class="hint">a Prolog list of In-Out pairs, or one pair per line</span></label><textarea id="io-ex" rows="4"></textarea></div>
+    <div><label for="io-opts">Options <span class="hint">optional, e.g. [exclude([sum])] to leave out a library predicate, or [depth(2)]</span></label><input type="text" id="io-opts"></div>
+    <div class="row"><button id="io-run">Find a program</button></div>
+  </div>
+  <div class="card" id="io-proof" hidden>
+    <div class="chips" id="iop-presets"></div>
+    <div><label for="iop-ex">Examples</label><textarea id="iop-ex" rows="3"></textarea></div>
+    <div><label for="iop-ref">Reference program <span class="hint">written by hand; its first predicate is the one compared</span></label><textarea id="iop-ref" rows="4"></textarea></div>
+    <div><label for="iop-types">Argument types</label><input type="text" id="iop-types"></div>
+    <div class="row"><button id="iop-run">Find, then prove equal</button></div>
+  </div>
+  <div class="card" id="io-active" hidden>
+    <p class="note">S2A2 starts from one input, keeps every candidate that fits, and asks the oracle (the reference program) only about the input on which the candidates disagree most.</p>
+    <div><label for="act-ref">Oracle</label><textarea id="act-ref" rows="4"></textarea></div>
+    <div><label for="act-init">Initial inputs</label><input type="text" id="act-init"></div>
+    <div class="row"><button id="act-run">Learn by asking</button></div>
+  </div>
+  <div class="out-wrap"><div class="out-head"><span>Output</span><span id="io-status"></span></div><pre class="out" id="io-out"></pre></div>
+</section>
+
+<!-- ============================================================ dictionary -->
+<section class="view" id="view-dictionary">
+  <h1>The dictionary of algorithms</h1>
+  <p class="lede">Pure, non-LLM predicates harvested from the author's repositories, plus entries built from them by inventors (map, filter, count, fold, …) and joiners (compose, fork, cond), kept only when their behaviour is new. Lemma provers conjecture equalities and algebraic laws, then refute, prove or test them. Synthesis takes only examples, or only code.</p>
+  <div class="note" id="dict-stats">Loading the dictionary when SWI-Prolog is ready…</div>
+  <div class="tabs" role="tablist">
+    <button role="tab" aria-selected="true" data-tab="d-synth">From examples</button>
+    <button role="tab" aria-selected="false" data-tab="d-code">From code</button>
+    <button role="tab" aria-selected="false" data-tab="d-browse">Browse and run</button>
+    <button role="tab" aria-selected="false" data-tab="d-lemmas">Lemmas</button>
+  </div>
+  <div class="card" id="d-synth">
+    <div class="chips" id="ds-presets"></div>
+    <div><label for="ds-ex">Examples <span class="hint">In-Out must hold; neg(In-Out) must not</span></label><textarea id="ds-ex" rows="3"></textarea></div>
+    <div class="row"><button id="ds-run">Search the dictionary</button><span class="note">One entry, then two joined; io_synth if nothing fits.</span></div>
+  </div>
+  <div class="card" id="d-code" hidden>
+    <div class="chips" id="dc-presets"></div>
+    <div><label for="dc-code">Code <span class="hint">a predicate Name/2</span></label><textarea id="dc-code" rows="5"></textarea></div>
+    <div class="row"><button id="dc-run">Match and prove</button><span class="note">The code is run to get examples, matched, then proved equal where possible.</span></div>
+  </div>
+  <div class="card" id="d-browse" hidden>
+    <div class="row">
+      <div style="flex:1;min-width:200px"><label for="db-q">Search by name, repository, file or scheme</label><input type="text" id="db-q" value="sum"></div>
+      <button id="db-run">Search</button>
+    </div>
+    <div class="tablewrap"><table id="db-table"><thead><tr><th>Entry</th><th>Type</th><th>Origin</th></tr></thead><tbody></tbody></table></div>
+    <div class="fields two">
+      <div><label for="dr-id">Entry</label><input type="text" id="dr-id" value="detlog2_det_sum"></div>
+      <div><label for="dr-in">Input</label><input type="text" id="dr-in" value="[4,5,6]"></div>
+    </div>
+    <div class="row"><button id="dr-run">Run on this input</button><button class="ghost" id="de-run">Show code, behaviour and lemmas</button></div>
+  </div>
+  <div class="card" id="d-lemmas" hidden>
+    <div class="row">
+      <div style="min-width:220px"><label for="dl-kind">Kind</label>
+        <select id="dl-kind"><option value="commute">commute: G(F(X)) = F(G(X))</option><option value="equal">equal: two definitions are one</option><option value="idempotent">idempotent: F(F(X)) = F(X)</option><option value="involution">involution: F(F(X)) = X</option></select></div>
+      <button id="dl-run">List lemmas</button>
+    </div>
+    <div class="tablewrap"><table id="dl-table"><thead><tr><th>Status</th><th>Entries</th><th>Evidence</th></tr></thead><tbody></tbody></table></div>
+  </div>
+  <div class="out-wrap"><div class="out-head"><span>Output</span><span id="d-status"></span></div><pre class="out" id="d-out"></pre></div>
+</section>
+
+<!-- ============================================================ prover -->
+<section class="view" id="view-prover">
+  <h1>Prove two programs equal</h1>
+  <p class="lede">io_proof.pl proves two predicates equal for every input of the declared types. It pairs predicates clause by clause, unfolds non-recursive helpers, compares arithmetic as polynomials, and uses induction on list arguments.</p>
+  <div class="card">
+    <div class="chips" id="pr-presets"></div>
+    <div class="fields two">
+      <div><label for="pr-a">Program A</label><textarea id="pr-a" rows="5"></textarea></div>
+      <div><label for="pr-b">Program B</label><textarea id="pr-b" rows="5"></textarea></div>
+    </div>
+    <div><label for="pr-types">Argument types <span class="hint">int, list(int), list(list(int)), any</span></label><input type="text" id="pr-types"></div>
+    <div class="row"><button id="pr-run">Prove</button></div>
+  </div>
+  <div class="out-wrap"><div class="out-head"><span>Output</span><span id="pr-status"></span></div><pre class="out" id="pr-out"></pre></div>
+</section>
+
+<!-- ============================================================ types -->
+<section class="view" id="view-types">
+  <h1>Types from proofs</h1>
+  <p class="lede">A type is the set of values at an argument slot <code>P/N:I</code>. Variables tie slots together, so sound proof rules give inclusions that hold for every input, classes of related slots, templates, and guards that are implied and can be dropped.</p>
+  <div class="card">
+    <div class="chips" id="ty-presets"></div>
+    <div><label for="ty-src">Program</label><textarea id="ty-src" rows="6"></textarea></div>
+    <div class="row"><button id="ty-run">Infer types</button></div>
+  </div>
+  <div class="out-wrap"><div class="out-head"><span>Output</span><span id="ty-status"></span></div><pre class="out" id="ty-out"></pre></div>
+</section>
+
+<!-- ============================================================ mnn -->
+<section class="view" id="view-mnn">
+  <h1>MNN speed-up of the derivation search</h1>
+  <p class="lede">A manual neuronet orders the operators tried at each step of the derivation search. Trained leave-one-family-out, it never sees the family it is measured on. The table is the committed measurement; you can rerun one family live.</p>
+  <div class="card">
+    <div class="tablewrap"><table id="mnn-table"><thead><tr><th>Family</th><th>Nodes, fixed order</th><th>Nodes, MNN order</th><th>Fewer nodes</th></tr></thead><tbody></tbody></table></div>
+    <p class="note" id="mnn-note"></p>
+  </div>
+  <div class="card">
+    <div class="row">
+      <div style="min-width:220px"><label for="mnn-fam">Measure one family live</label><select id="mnn-fam"></select></div>
+      <button id="mnn-run">Train and measure</button>
+      <span class="note">Training uses every other family's derivations, so this can take a minute or more.</span>
+    </div>
+  </div>
+  <div class="out-wrap"><div class="out-head"><span>Output</span><span id="mnn-status"></span></div><pre class="out" id="mnn-out"></pre></div>
+</section>
+
+<!-- ============================================================ reports -->
+<section class="view" id="view-reports">
+  <h1>Committed results</h1>
+  <p class="lede">The outputs CI checks on every push. They are the full runs behind each page, including the parts too long to run comfortably in a browser.</p>
+  <div class="card"><div class="chips" id="rep-list"></div></div>
+  <div class="out-wrap"><div class="out-head"><span id="rep-title">Choose a report</span><span></span></div><pre class="out" id="rep-out"></pre></div>
+</section>
+</main>
+</div>
+
+<script type="text/plain" id="worker-src">
+let swipl = null;
+self.onmessage = async (e) => {
+  const m = e.data;
+  if (m.type === 'init') {
+    let lastErr = null;
+    for (const url of m.bundles) {
+      try { importScripts(url); lastErr = null; break; } catch (err) { lastErr = err; }
+    }
+    if (lastErr || typeof SWIPL === 'undefined') { self.postMessage({ type: 'failed', msg: 'Could not load SWI-Prolog (WebAssembly): ' + (lastErr ? lastErr.message : 'no SWIPL') }); return; }
+    try {
+      const factory = (typeof SWIPL === 'function') ? SWIPL : (SWIPL.default || SWIPL.SWIPL);
+      self.postMessage({ type: 'status', msg: 'Starting SWI-Prolog…' });
+      swipl = await factory({ arguments: ['-q'], print: () => {}, printErr: () => {} });
+      const FS = swipl.FS;
+      for (const f of m.files) {
+        const dir = f.path.substring(0, f.path.lastIndexOf('/'));
+        FS.mkdirTree(dir);
+        FS.writeFile(f.path, f.text);
+      }
+      self.postMessage({ type: 'status', msg: 'Loading S2A2…' });
+      const ok = swipl.prolog.query("working_directory(_, '/s2a2/prolog'), use_module(web), current_prolog_flag(version, V)").once();
+      if (!ok || ok.success === false) throw new Error('S2A2 did not load');
+      self.postMessage({ type: 'ready', version: ok.V });
+    } catch (err) { self.postMessage({ type: 'failed', msg: String(err && err.message || err) }); }
+  } else if (m.type === 'call') {
+    const t0 = performance.now();
+    let out;
+    try {
+      const r = swipl.prolog.query(m.goal, m.args).once();
+      if (!r || r.success === false) out = '(the query failed)';
+      else if (r.error) out = 'Error: ' + JSON.stringify(r.error);
+      else out = (typeof r.Out === 'string') ? r.Out : (r.Out && r.Out.v !== undefined ? r.Out.v : String(r.Out));
+    } catch (err) { out = 'Error: ' + String(err && err.message || err); }
+    self.postMessage({ type: 'result', id: m.id, out, ms: Math.round(performance.now() - t0) });
+  }
+};
+</script>
+
+<script>
+(() => {
+'use strict';
+const $ = (id) => document.getElementById(id);
+
+// ------------------------------------------------------------------ files and engine
+const PROLOG_FILES = ['web.pl','s2a2.pl','axioms.pl','instances.pl','prover.pl','types.pl','fold.pl','io_synth.pl','io_proof.pl','io_synth_refs.pl','dict.pl','experiment.pl','s2gn_cover.pl'];
+const DICT_FILES = ['dictionary.pl','generated.pl'];
+const BUNDLES = ['swipl-bundle.js', 'https://cdn.jsdelivr.net/npm/swipl-wasm@8.2.6/dist/swipl/swipl-bundle.js', 'https://swi-prolog.github.io/npm-swipl-wasm/8/2/6/index.js'];
+let base = null;   // '' when served with the files beside the page, '../' from webapp/ in the repository
+
+// A host that will not serve .pl or .log files gets copies named file.pl.txt, file.log.txt.
+async function fetchText(path) {
+  for (const p of [path, path + '.txt']) {
+    try {
+      const r = await fetch(p); if (!r.ok) continue;
+      const t = await r.text();
+      if (/^\s*<!DOCTYPE html/i.test(t)) continue;      // a host's fallback page, not the file
+      return t;
+    } catch (e) {}
+  }
+  throw new Error(path + ' could not be read');
+}
+async function findBase() {
+  for (const b of ['', '../']) {
+    for (const p of ['prolog/web.pl', 'prolog/web.pl.txt']) {
+      try { const r = await fetch(b + p); if (r.ok && !/^\s*<!DOCTYPE html/i.test(await r.text())) return b; } catch (e) {}
+    }
+  }
+  throw new Error('The S2A2 Prolog files were not found next to this page.');
+}
+
+let worker = null, ready = null, pending = new Map(), nextId = 1, busy = 0, files = null;
+function engineState(cls, text, detail) {
+  const el = $('engine'); el.className = 'engine ' + (cls || '');
+  $('engine-text').textContent = text; $('engine-detail').textContent = detail || '';
+}
+async function startEngine() {
+  if (!files) {
+    engineState('', 'Fetching S2A2…');
+    base = await findBase();
+    const list = PROLOG_FILES.map(f => ['prolog/' + f, '/s2a2/prolog/' + f]).concat(DICT_FILES.map(f => ['dictionary/' + f, '/s2a2/dictionary/' + f]));
+    files = await Promise.all(list.map(async ([src, dst]) => {
+      try { return { path: dst, text: await fetchText(base + src) }; } catch (e) { return null; }
+    }));
+    files = files.filter(Boolean);
+  }
+  const bundles = BUNDLES.map(u => u.startsWith('http') ? u : new URL(u, location.href).href);
+  const blob = new Blob([$('worker-src').textContent], { type: 'text/javascript' });
+  worker = new Worker(URL.createObjectURL(blob));
+  ready = new Promise((resolve, reject) => {
+    worker.onmessage = (e) => {
+      const m = e.data;
+      if (m.type === 'status') engineState('', m.msg);
+      else if (m.type === 'ready') {
+        const v = m.version, vs = typeof v === 'number' ? `${Math.floor(v/10000)}.${Math.floor(v/100)%100}.${v%100}` : v;
+        engineState('ready', 'SWI-Prolog ' + vs + ' ready', 'S2A2 loaded in this page');
+        resolve();
+      } else if (m.type === 'failed') { engineState('failed', 'SWI-Prolog could not start', m.msg + ' The committed results still work.'); reject(new Error(m.msg)); }
+      else if (m.type === 'result') { const p = pending.get(m.id); if (p) { pending.delete(m.id); p(m); } }
+    };
+    worker.onerror = (e) => { engineState('failed', 'SWI-Prolog could not start', e.message || 'worker error'); reject(e); };
+  });
+  worker.postMessage({ type: 'init', bundles, files });
+  return ready;
+}
+function restartEngine() {
+  if (worker) worker.terminate();
+  for (const [, p] of pending) p({ out: '(stopped)', ms: 0, stopped: true });
+  pending.clear(); busy = 0; $('stop').disabled = true;
+  startEngine().catch(() => {});
+}
+$('stop').addEventListener('click', restartEngine);
+
+async function call(goal, args) {
+  await ready;
+  const id = nextId++;
+  busy++; $('stop').disabled = false;
+  return new Promise((resolve) => {
+    pending.set(id, (m) => { busy = Math.max(0, busy - 1); if (!busy) $('stop').disabled = true; resolve(m); });
+    worker.postMessage({ type: 'call', id, goal, args });
+  });
+}
+
+// ------------------------------------------------------------------ output
+function esc(s) { return s.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }
+function paint(text) {
+  return text.split('\n').map(line => {
+    const e = esc(line);
+    if (/^(==|---)/.test(line)) return `<span class="h">${e}</span>`;
+    if (/no counter-example/i.test(line)) return `<span class="warn">${e}</span>`;
+    if (/(Error|refuted|not_proved|NOT proved|FAILED|no program found|no derivation|learning failed|counter.example|undefined|equals the reference axioms: false|optimiser: false)/i.test(line)) return `<span class="bad">${e}</span>`;
+    if (/(proved|: true|equal_on|reproduces every example: ok|: ok$|found in the dictionary|speed-up)/i.test(line)) return `<span class="ok">${e}</span>`;
+    if (/(tested|stopped)/i.test(line)) return `<span class="warn">${e}</span>`;
+    return e;
+  }).join('\n');
+}
+function status(el, kind, text) { el.innerHTML = `<span class="pill ${kind}">${esc(text)}</span>`; }
+async function run(btn, outId, statusId, goal, args) {
+  const out = $(outId), st = $(statusId);
+  if (btn) btn.disabled = true;
+  status(st, 'run', ready ? 'Running…' : 'Starting SWI-Prolog…');
+  out.textContent = '';
+  try {
+    const t = setTimeout(() => status(st, 'run', 'Still running… (Stop is in the left rail)'), 8000);
+    const r = await call(goal, args);
+    clearTimeout(t);
+    out.innerHTML = paint(r.out || '');
+    if (r.stopped) status(st, 'warn', 'Stopped');
+    else status(st, /^Error|\nError/.test(r.out) ? 'bad' : 'ok', 'Done in ' + fmtMs(r.ms));
+    return r.out;
+  } catch (e) {
+    status(st, 'bad', 'SWI-Prolog is not available');
+    out.textContent = String(e.message || e);
+  } finally { if (btn) btn.disabled = false; }
+}
+function fmtMs(ms) { return ms < 1000 ? ms + ' ms' : (ms / 1000).toFixed(1) + ' s'; }
+
+function chips(containerId, presets, apply) {
+  const c = $(containerId);
+  presets.forEach((p, i) => {
+    const b = document.createElement('button');
+    b.className = 'chip'; b.type = 'button'; b.textContent = p.name; b.setAttribute('aria-pressed', i === 0 ? 'true' : 'false');
+    b.addEventListener('click', () => { c.querySelectorAll('.chip').forEach(x => x.setAttribute('aria-pressed', 'false')); b.setAttribute('aria-pressed', 'true'); apply(p); });
+    c.appendChild(b);
+  });
+  apply(presets[0]);
+}
+function tabs(section) {
+  const btns = section.querySelectorAll('.tabs button');
+  btns.forEach(b => b.addEventListener('click', () => {
+    btns.forEach(x => { x.setAttribute('aria-selected', 'false'); $(x.dataset.tab).hidden = true; });
+    b.setAttribute('aria-selected', 'true'); $(b.dataset.tab).hidden = false;
+  }));
+}
+
+// ------------------------------------------------------------------ routing
+const VIEWS = ['overview','learn','spec','examples','dictionary','prover','types','mnn','reports'];
+function route() {
+  const v = VIEWS.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'overview';
+  VIEWS.forEach(n => $('view-' + n).classList.toggle('active', n === v));
+  document.querySelectorAll('nav.rail a').forEach(a => { if (a.getAttribute('href') === '#' + v) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
+  if (v === 'dictionary') dictStats();
+  window.scrollTo(0, 0);
+}
+window.addEventListener('hashchange', route);
+
+// ------------------------------------------------------------------ 01 families
+const FAMILIES = {
+  dup_clause: ['duplicate clause', 'Delete a clause that repeats another.', 'under a second'],
+  dup_literal: ['duplicate literal', 'Delete a body goal that repeats another.', 'under a second'],
+  subsumed_clause: ['subsumed clause', 'Delete a clause another clause subsumes.', 'under a second'],
+  implied_clause: ['implied clause', 'Delete a clause the other clauses imply, checked by the prover.', 'a few seconds'],
+  dup_then_subsumed: ['duplicate then subsumed', 'Two rules learned in order: duplicates first, then subsumed clauses.', 'under a second'],
+  pid: ['PID', 'Delete a clause that calls itself unchanged; turn left recursion into right recursion by a learned template.', 'under a second'],
+  loop2: ['loop2', 'Unfold calls to inline loop bodies.', 'under a second'],
+  starlog: ['Starlog', 'Unfold, then delete definitions no target uses.', 'a few seconds'],
+  plop: ['PLOp', 'Unfold when the caller is a target; merge two calls when the predicate is functional in its first argument (learned from a counter-example the prover found).', 'about a minute or more'],
+  algebraplop: ['AlgebraPLOp', 'Replace an affine recurrence by its closed form, and invert the formula.', 'a few seconds'],
+  detlog: ['Detlog', 'Replace a negated guard by its complement.', 'under a second'],
+  piglog2: ['Piglog2', 'Extract an independent group of goals into a new predicate.', 'a few seconds'],
+  proof_types: ['proof/types', 'Delete a guard whose type is implied by a related variable.', 'a few seconds'],
+};
+const famSel = $('fam'), mnnSel = $('mnn-fam');
+Object.entries(FAMILIES).forEach(([k, [name]]) => {
+  famSel.add(new Option(name + '  (' + k + ')', k)); mnnSel.add(new Option(name, k));
+});
+famSel.value = 'pid'; mnnSel.value = 'detlog';
+function famAbout() { const f = FAMILIES[famSel.value]; $('fam-about').textContent = f[1]; $('fam-time').textContent = 'Live run: ' + f[2] + '.'; }
+famSel.addEventListener('change', () => { famAbout(); $('fam-out').textContent = ''; $('fam-status').textContent = ''; });
+famAbout();
+$('fam-run').addEventListener('click', () => { $('fam-out-title').textContent = 'Live run'; run($('fam-run'), 'fam-out', 'fam-status', 'web:web_family(F, Out)', { F: famSel.value }); });
+$('fam-show').addEventListener('click', () => { $('fam-out-title').textContent = 'Training and test programs'; run($('fam-show'), 'fam-out', 'fam-status', 'web:web_family_show(F, Out)', { F: famSel.value }); });
+$('fam-log').addEventListener('click', async () => {
+  $('fam-out-title').textContent = 'Committed CI log: results/' + famSel.value + '.log';
+  try { const t = await fetchText((base ?? await findBase()) + 'results/' + famSel.value + '.log'); $('fam-out').innerHTML = paint(t); status($('fam-status'), 'ok', 'From CI'); }
+  catch (e) { $('fam-out').textContent = String(e.message || e); }
+});
+
+// ------------------------------------------------------------------ 02 spec to algorithm
+const APP = 'app([], L, L).\napp([H|T], L, [H|R]) :- app(T, L, R).\n';
+chips('spec-presets', [
+  { name: 'Naive reverse', src: APP + 'rev([], []).\nrev([H|T], R) :- rev(T, RT), app(RT, [H], R).', t: 'rev/2', m: '[in(list(any)), out]' },
+  { name: 'Append three lists', src: APP + 'app3(X, Y, Z, R) :- app(X, Y, W), app(W, Z, R).', t: 'app3/4', m: '[in(list(any)), in(list(any)), in(any), out]' },
+  { name: 'Tree flatten', src: APP + 'flat(leaf, []).\nflat(node(L, X, R), F) :- flat(L, FL), flat(R, FR), app(FL, [X|FR], F).', t: 'flat/2', m: '[in(tree(any)), out]' },
+  { name: 'Sum', src: 'sum([], 0).\nsum([H|T], S) :- sum(T, S1), S is S1 + H.', t: 'sum/2', m: '[in(list(int)), out]' },
+  { name: 'Length', src: 'len([], 0).\nlen([_|T], N) :- len(T, M), N is M + 1.', t: 'len/2', m: '[in(list(any)), out]' },
+  { name: 'Fibonacci', src: 'fib(0, 0).\nfib(s(0), 1).\nfib(s(s(N)), F) :- fib(s(N), F1), fib(N, F2), F is F1 + F2.', t: 'fib/2', m: '[in(nat), out]' },
+], p => { $('spec-src').value = p.src; $('spec-target').value = p.t; $('spec-mode').value = p.m; });
+$('spec-run').addEventListener('click', () => run($('spec-run'), 'spec-out', 'spec-status', 'web:web_fold(S, T, M, Out)', { S: $('spec-src').value, T: $('spec-target').value, M: $('spec-mode').value }));
+
+// ------------------------------------------------------------------ 03 examples
+tabs($('view-examples'));
+chips('io-presets', [
+  { name: 'Drop the minimum of each sublist', ex: '[ [[1,3,5],[5,3,2]]-[[3,5],[5,3]], [[7,9],[4]]-[[9],[]] ]', o: '' },
+  { name: 'Double each', ex: '[ [1,2,3]-[2,4,6], [5]-[10], []-[] ]', o: '' },
+  { name: 'Add one to every number', ex: '[ [[1,2],[3]]-[[2,3],[4]], [[5]]-[[6]], []-[] ]', o: '' },
+  { name: 'Drop the maximum', ex: '[ [3,1,2]-[1,2], [7,9,8]-[7,8], [5,6,4]-[5,4] ]', o: '' },
+  { name: 'Subtract the minimum', ex: '[ [3,5,4]-[0,2,1], [7,9]-[0,2], [2]-[0] ]', o: '' },
+  { name: 'Min and max', ex: '[ [3,1,2]-(1-3), [5,9]-(5-9), [4]-(4-4) ]', o: '' },
+  { name: 'Keep the evens', ex: '[ [1,2,3,4]-[2,4], [5,6]-[6], [7]-[], [-2,1]-[-2] ]', o: '' },
+  { name: 'Sum, then a faster version', ex: '[ [1,2,3]-6, [4]-4, []-0, [2,5]-7 ]', o: '[exclude([sum]), ga(false)]' },
+  { name: 'Reverse, then a faster version', ex: '[ [1,2,3]-[3,2,1], [4]-[4], []-[], [2,5]-[5,2] ]', o: '[exclude([rev]), ga(false)]' },
+], p => { $('io-ex').value = p.ex; $('io-opts').value = p.o; });
+$('io-run').addEventListener('click', () => run($('io-run'), 'io-out', 'io-status', 'web:web_io_synth(E, O, Out)', { E: $('io-ex').value, O: $('io-opts').value }));
+chips('iop-presets', [
+  { name: 'Double each', ex: '[ [1,2]-[2,4], [3]-[6], []-[] ]', ref: 'ref_double([], []).\nref_double([X|Xs], [Y|Ys]) :- Y is X * 2, ref_double(Xs, Ys).', ty: '[list(int), any]' },
+  { name: 'Square each', ex: '[ [1,2,3]-[1,4,9], [5]-[25], []-[] ]', ref: 'ref_square([], []).\nref_square([X|Xs], [Y|Ys]) :- Y is X * X, ref_square(Xs, Ys).', ty: '[list(int), any]' },
+  { name: 'Add one to every number', ex: '[ [[1,2],[3]]-[[2,3],[4]], [[5]]-[[6]], []-[] ]', ref: 'ref_inc_all([], []).\nref_inc_all([L|Ls], [R|Rs]) :- inc_row(L, R), ref_inc_all(Ls, Rs).\ninc_row([], []).\ninc_row([X|Xs], [Y|Ys]) :- Y is X + 1, inc_row(Xs, Ys).', ty: '[list(list(int)), any]' },
+], p => { $('iop-ex').value = p.ex; $('iop-ref').value = p.ref; $('iop-types').value = p.ty; });
+$('iop-run').addEventListener('click', () => run($('iop-run'), 'io-out', 'io-status', 'web:web_io_prove(E, R, T, Out)', { E: $('iop-ex').value, R: $('iop-ref').value, T: $('iop-types').value }));
+$('act-ref').value = 'ref_dropmin_each([], []).\nref_dropmin_each([L|Ls], [R|Rs]) :- min_list(L, M), exclude(==(M), L, R), ref_dropmin_each(Ls, Rs).';
+$('act-init').value = '[[[1,3,5],[5,3,2]]]';
+$('act-run').addEventListener('click', () => run($('act-run'), 'io-out', 'io-status', 'web:web_active(R, I, Out)', { R: $('act-ref').value, I: $('act-init').value }));
+
+// ------------------------------------------------------------------ 04 dictionary
+tabs($('view-dictionary'));
+let statsDone = false;
+async function dictStats() {
+  if (statsDone) return; statsDone = true;
+  try { const r = await call('web:web_dict_stats(Out)', {}); $('dict-stats').innerHTML = '<span class="pill ok">Loaded</span> ' + esc(r.out.trim()); }
+  catch (e) { statsDone = false; $('dict-stats').textContent = 'The dictionary needs SWI-Prolog, which could not start.'; }
+}
+chips('ds-presets', [
+  { name: 'Sum of squares (invented, then harvested)', ex: '[ [1,2]-5, [3]-9, []-0, [1,1,1]-3 ]' },
+  { name: 'Square', ex: '[ 2-4, 3-9, -1-1 ]' },
+  { name: 'Square of the sum (two joined)', ex: '[ [1,2]-9, [3]-9, [2,2]-16, []-0 ]' },
+  { name: 'A negative example', ex: '[ 3-9, neg(2-4) ]' },
+  { name: 'Square each', ex: '[ [1,2]-[1,4], [3]-[9], []-[] ]' },
+  { name: 'Not in the dictionary', ex: '[ [[1,3,5],[5,3,2]]-[[3,5],[5,3]], [[7,9],[4]]-[[9],[]] ]' },
+], p => { $('ds-ex').value = p.ex; });
+$('ds-run').addEventListener('click', () => run($('ds-run'), 'd-out', 'd-status', 'web:web_dict_synth(E, Out)', { E: $('ds-ex').value }));
+chips('dc-presets', [
+  { name: 'A hand-written sum', code: 'total([], 0).\ntotal([H|T], S) :- total(T, S0), S is H + S0.' },
+  { name: 'Triple', code: 'thrice(X, Y) :- Y is X + X + X.' },
+  { name: 'Reverse with an accumulator', code: 'rv(L, R) :- rv(L, [], R).\nrv([], A, A).\nrv([H|T], A, R) :- rv(T, [H|A], R).' },
+  { name: 'Square each', code: 'sqs([], []).\nsqs([X|Xs], [Y|Ys]) :- Y is X * X, sqs(Xs, Ys).' },
+], p => { $('dc-code').value = p.code; });
+$('dc-run').addEventListener('click', () => run($('dc-run'), 'd-out', 'd-status', 'web:web_dict_code(C, Out)', { C: $('dc-code').value }));
+async function dictSearch() {
+  const out = await run($('db-run'), 'd-out', 'd-status', 'web:web_dict_search(Q, Out)', { Q: $('db-q').value });
+  if (!out) return;
+  const lines = out.trim().split('\n'), tb = $('db-table').tBodies[0]; tb.innerHTML = '';
+  $('d-out').textContent = lines[0] + (lines.length > 301 ? ' (first 300 shown)' : '') + '. Click a row to see its code, behaviour and lemmas.';
+  lines.slice(1).forEach(l => {
+    const [id, ty, origin] = l.split('\t'); if (!id) return;
+    const tr = document.createElement('tr'); tr.className = 'clickable'; tr.tabIndex = 0;
+    tr.innerHTML = `<td class="mono">${esc(id)}</td><td class="mono">${esc(ty || '')}</td><td>${esc(origin || '')}</td>`;
+    const open = () => { $('dr-id').value = id; showEntry(); };
+    tr.addEventListener('click', open); tr.addEventListener('keydown', e => { if (e.key === 'Enter') open(); });
+    tb.appendChild(tr);
+  });
+}
+function showEntry() { run($('de-run'), 'd-out', 'd-status', 'web:web_dict_entry(I, Out)', { I: $('dr-id').value.trim() }); }
+$('db-run').addEventListener('click', dictSearch);
+$('db-q').addEventListener('keydown', e => { if (e.key === 'Enter') dictSearch(); });
+$('de-run').addEventListener('click', showEntry);
+$('dr-run').addEventListener('click', () => run($('dr-run'), 'd-out', 'd-status', 'web:web_dict_run(I, X, Out)', { I: $('dr-id').value.trim(), X: $('dr-in').value }));
+$('dl-run').addEventListener('click', async () => {
+  const out = await run($('dl-run'), 'd-out', 'd-status', 'web:web_dict_lemmas(K, Out)', { K: $('dl-kind').value });
+  if (!out) return;
+  const tb = $('dl-table').tBodies[0]; tb.innerHTML = ''; const counts = {};
+  out.trim().split('\n').forEach(l => {
+    const [st, ids, ev] = l.split('\t'); if (!st || !ids) return; counts[st] = (counts[st] || 0) + 1;
+    const cls = st === 'proved' ? 'ok' : st === 'refuted' ? 'bad' : 'warn';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td><span class="pill ${cls}">${esc(st)}</span></td><td class="mono">${esc(ids)}</td><td>${esc(ev || 'proved by io_proof')}</td>`;
+    tb.appendChild(tr);
+  });
+  $('d-out').textContent = Object.entries(counts).map(([k, v]) => v + ' ' + k).join(', ') || 'none';
+});
+
+// ------------------------------------------------------------------ 05 prover
+chips('pr-presets', [
+  { name: 'Two sums (proved)', a: 'total([], 0).\ntotal([H|T], S) :- total(T, S0), S is H + S0.', b: 's([], 0).\ns([H|T], S) :- s(T, S0), S is S0 + H.', t: '[list(int), int]' },
+  { name: 'Map with a helper (proved)', a: 'dbl([], []).\ndbl([X|Xs], [Y|Ys]) :- twice(X, Y), dbl(Xs, Ys).\ntwice(X, Y) :- Y is X + X.', b: 'd2([], []).\nd2([X|Xs], [Y|Ys]) :- Y is 2 * X, d2(Xs, Ys).', t: '[list(int), any]' },
+  { name: 'Polynomial arithmetic (proved)', a: 'f([], []).\nf([X|Xs], [Y|Ys]) :- Y is (X + 1) * (X + 1), f(Xs, Ys).', b: 'g([], []).\ng([X|Xs], [Y|Ys]) :- Y is X * X + 2 * X + 1, g(Xs, Ys).', t: '[list(int), any]' },
+  { name: 'Not equal', a: 'f([], []).\nf([X|Xs], [Y|Ys]) :- Y is X * X, f(Xs, Ys).', b: 'g([], []).\ng([X|Xs], [Y|Ys]) :- Y is X + X, g(Xs, Ys).', t: '[list(int), any]' },
+], p => { $('pr-a').value = p.a; $('pr-b').value = p.b; $('pr-types').value = p.t; });
+$('pr-run').addEventListener('click', () => run($('pr-run'), 'pr-out', 'pr-status', 'web:web_prove(A, B, T, Out)', { A: $('pr-a').value, B: $('pr-b').value, T: $('pr-types').value }));
+
+// ------------------------------------------------------------------ 06 types
+chips('ty-presets', [
+  { name: 'Family relations', src: 'person(A) :- parent(A, _).\nperson(B) :- parent(_, B).\nsib(S, T) :- person(S), parent(P, S), parent(P, T), S \\= T.\nadult(X) :- person(X), age(X, G), G >= 18.' },
+  { name: 'Reachability', src: 'reach(X, Y) :- edge(X, Y).\nreach(X, Y) :- edge(X, Z), reach(Z, Y).' },
+  { name: 'Refinement and conversion', src: 'pos(N) :- num(N), N > 0.\nval(I, V) :- pos(I), V is 1 + 2 * I.' },
+], p => { $('ty-src').value = p.src; });
+$('ty-run').addEventListener('click', () => run($('ty-run'), 'ty-out', 'ty-status', 'web:web_types(P, Out)', { P: $('ty-src').value }));
+
+// ------------------------------------------------------------------ 07 mnn
+async function mnnTable() {
+  try {
+    const t = await fetchText((base ?? await findBase()) + 'results/speedup.txt');
+    const tb = $('mnn-table').tBodies[0]; let a = 0, b = 0;
+    t.split('\n').slice(1).forEach(l => {
+      const m = l.match(/^(\S+)\s+(\d+)\s+(\d+)\s+(.*)$/); if (!m) { if (l.trim().startsWith('(')) $('mnn-note').textContent = l.trim().replace(/^\(|\)$/g, ''); return; }
+      const x = +m[2], y = +m[3]; a += x; b += y; const r = x / y;
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${esc((FAMILIES[m[1]] || [m[1]])[0])}</td><td style="font-variant-numeric:tabular-nums">${x.toLocaleString()}</td><td style="font-variant-numeric:tabular-nums">${y.toLocaleString()}</td><td><span class="pill ${r >= 1 ? 'ok' : 'bad'}">${r.toFixed(2)}×</span></td>`;
+      tb.appendChild(tr);
+    });
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td><b>Total</b></td><td><b>${a.toLocaleString()}</b></td><td><b>${b.toLocaleString()}</b></td><td><span class="pill ok">${(a / b).toFixed(1)}×</span></td>`;
+    $('mnn-table').tBodies[0].appendChild(tr);
+  } catch (e) { $('mnn-note').textContent = 'results/speedup.txt could not be read: ' + e.message; }
+}
+$('mnn-run').addEventListener('click', () => run($('mnn-run'), 'mnn-out', 'mnn-status', 'web:web_mnn(F, Out)', { F: mnnSel.value }));
+
+// ------------------------------------------------------------------ 08 reports
+const REPORTS = [
+  ['fold.txt', 'Spec to algorithm: lemmas, six derivations, strategy learning'],
+  ['io_synth.txt', 'Programs from input/output, with proofs and measurements'],
+  ['dictionary.txt', 'Dictionary: harvest, lemmas, inventors, joiners'],
+  ['speedup.txt', 'MNN speed-up'],
+  ['plop_refinement.txt', 'PLOp: how the prover forced the merge condition'],
+].concat(Object.keys(FAMILIES).map(f => [f + '.log', 'Family: ' + FAMILIES[f][0]]));
+REPORTS.forEach(([f, d]) => {
+  const b = document.createElement('button'); b.className = 'chip'; b.type = 'button'; b.textContent = d; b.title = 'results/' + f;
+  b.addEventListener('click', async () => {
+    $('rep-list').querySelectorAll('.chip').forEach(x => x.setAttribute('aria-pressed', 'false')); b.setAttribute('aria-pressed', 'true');
+    $('rep-title').textContent = 'results/' + f;
+    try { $('rep-out').innerHTML = paint(await fetchText((base ?? await findBase()) + 'results/' + f)); } catch (e) { $('rep-out').textContent = String(e.message || e); }
+  });
+  $('rep-list').appendChild(b);
+});
+
+// ------------------------------------------------------------------ start
+route();
+findBase().then(b => { base = b; mnnTable(); $('rep-list').querySelector('.chip').click(); }).catch(e => { engineState('failed', 'S2A2 files not found', e.message); });
+ready = startEngine();
+ready.catch(() => {});
+})();
+</script>
+</body>
+</html>

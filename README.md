@@ -277,6 +277,10 @@ Each proof lists the steps it used. The prover reports `not_proved` rather than 
 
 **What is still open.** The harvest probes only integers, lists of integers and pairs of them, so algorithms over strings, atoms and terms are found only where they also work on those inputs. `io_proof` does not prove the idempotence or involution lemmas, so these are kept as tested. Aleph's background clauses given with the examples (not harvested), and mode declarations, are not taken yet. To re-harvest, clone the repositories and run `swipl harvest.pl -- ../dictionary/dictionary.pl Repo1 Repo2 ...`.
 
+## Web app (`webapp/`)
+
+`webapp/index.html` runs S2A2 in the browser, in SWI-Prolog compiled to WebAssembly. It has a page for each capability: learning an optimisation, specification to algorithm, programs from examples, the dictionary, proofs of equality, and types from proofs. It also shows the MNN speed-up and the committed results. Every page opens with a worked example. See `webapp/README.md` for how to run it.
+
 ## Further reading
 
 - [`docs/io_synth_examples.md`](docs/io_synth_examples.md): worked input/output → program examples, the hand-over to `fold.pl`, and how this differs from Popper and Aleph.
@@ -307,6 +311,9 @@ Each proof lists the steps it used. The prover reports `not_proved` rather than 
 | `prolog/dict.pl` | loads and runs the dictionary; synthesis from input/output (positive and negative examples) or from code, with `io_synth` as the fallback |
 | `prolog/dict_gen.pl` | lemma provers, inventors and joiners (writes `dictionary/generated.pl` and `results/dictionary.txt`) |
 | `prolog/dict_tests.pl` | 13 tests for the dictionary and synthesis from it |
+| `prolog/web.pl` | the predicates the web app calls; each takes text and returns S2A2's output as text |
+| `prolog/web_tests.pl` | 21 tests of `web.pl` on the web app's own examples |
+| `webapp/index.html` | the web app (SWI-Prolog in WebAssembly, in a Web Worker) |
 | `prolog/io_synth_examples.pl` | hierarchies from examples with proofs, the reductions measured, the genetic algorithm, active learning, input/output to algorithm, refusals (writes `results/io_synth.txt`) |
 
 ## Run
