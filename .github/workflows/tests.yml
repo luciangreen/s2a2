@@ -38,6 +38,8 @@ jobs:
           git diff --exit-code ../dictionary/generated.pl ../results/dictionary.txt
       - name: Dictionary tests (synthesis from input/output or code)
         run: cd prolog && swipl -q -g main -t 'halt(1)' dict_tests.pl
+      - name: Web app predicates (time limits as inference limits, as in the browser)
+        run: cd prolog && S2A2_WEB_SHIM=1 swipl -q -g main -t 'halt(1)' web_tests.pl
       - name: Spec to algorithm examples, and the committed results must not change
         run: |
           cd prolog && swipl -q -g main -t 'halt(1)' fold_examples.pl > /dev/null
