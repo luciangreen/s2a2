@@ -287,6 +287,10 @@ Each proof lists the steps it used. The prover reports `not_proved` rather than 
 - [`docs/scope.md`](docs/scope.md): what is hardwired, and why S2A2 does not find algorithms from first principles.
 - [`docs/mnns_s2a_vs_s2a2.md`](docs/mnns_s2a_vs_s2a2.md): the `s2a/4` in mnns compared with S2A2's `io_synth`, run on the same 12 tasks (`docs/compare_mnns_s2a.pl`): mnns solves 4, `io_synth` all 12.
 
+## 200 inputs and outputs (`io/`)
+
+`io/ios.txt` lists 200 inputs and the outputs they give, from real runs of S2A2's predicates: io_synth's programs from input/output examples (run again on new inputs) and its structural signals, io_proof's equality proofs for pairs of list programs, the prover on a program and a changed copy (syntactic, exhaustive or refuted), each family's axioms on its test programs with the prover's verdict, learn/2 and apply_algorithm/5 on before/after pairs, and fold's spec to algorithm with verify/5's verdict. The inputs are made the same way every time (`io/cases.pl`). `swipl io/check_ios.pl` runs them again and fails if any output changed; the "Inputs and outputs" workflow does the same on every push. If a change is meant, run `swipl io/make_ios.pl` and check the diff.
+
 ## Files
 
 | File | Contents |
